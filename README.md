@@ -41,7 +41,7 @@ Here is exactly where data flows and where it is stored:
 
 ### Authentication & Monarch connection
 
-1. You enter your Monarch email and password in Settings. These are saved **only** in a file called `.env` in the app folder on your computer — they are never transmitted to any server other than Monarch's own login endpoint.
+1. You enter your Monarch email and password into a chrome window just to capture the session data — they are never transmitted to any server other than Monarch's own login endpoint.
 2. When you click **Connect to Monarch**, a Chromium browser window opens on your machine. You log in directly to `app.monarchmoney.com` — your credentials go from your keyboard to Monarch's servers, nowhere else.
 3. After a successful login, Playwright saves your session cookies to `browser_state.json` in the app folder. Subsequent data fetches use this saved session (headless, no visible window) to avoid repeated logins.
 4. All future data fetches go directly from your computer to `api.monarch.com` — the same GraphQL endpoint your browser uses when you visit Monarch normally.
@@ -50,7 +50,7 @@ Here is exactly where data flows and where it is stored:
 
 | File | What it contains | Leaves your device? |
 |---|---|---|
-| `.env` | Monarch email, password, AI API keys | **Never** |
+| `.env` | AI API key |
 | `browser_state.json` | Monarch session cookies | **Never** |
 | `config.yaml` | App preferences (account ID, forecast horizon, etc.) | **Never** |
 | `insights.json` | AI analysis output | Only if you configure an AI provider |
@@ -59,7 +59,7 @@ Here is exactly where data flows and where it is stored:
 | `monarch_accounts_cache.json` | Account names and IDs from Monarch | **Never** |
 | `user_context.md` | Corrections you feed to the AI | Only if you configure an AI provider |
 
-The app runs a local web server at `http://localhost:5002`. This server is only accessible from your own computer — it does not listen on a network interface accessible to other devices.
+The app runs a local web server at `http://localhost:5002` by default. This server is only accessible from your own computer — it does not listen on a network interface accessible to other devices.
 
 ### AI provider data handling (optional feature)
 
