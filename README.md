@@ -93,12 +93,12 @@ An API key from one of these providers (pick one):
 
 ### Step 1 — Download the app
 
-Click the green **Code** button on this page and choose **Download ZIP**. Unzip it somewhere you'll remember, like your Documents folder.
+Click the **Code** button on this page and choose **Download ZIP**. Unzip it somewhere you'll remember, like your Documents folder. (Or if you're already fluent in git just fork the repo and have at it.)
 
 ### Step 2 — Launch it
 
 **On Mac:**
-Double-click **`Start Balance Forecast.command`** in the folder.
+Double-click **`Start Balance Forecast.command`** in the folder. On first run it will take a couple of minutes to set up and open the Settings page in a browser - be patient and watch your terminal window for any dependency errors!
 
 > The first time you open it, macOS may warn you it's from an unidentified developer. Right-click the file → **Open** → **Open** to proceed. You only need to do this once.
 
@@ -112,23 +112,18 @@ The launcher will automatically:
 
 ### Step 3 — Connect to Monarch
 
-Your browser will open to the **Settings** page. The **Monarch Connection** section (highlighted with a blue border) is the only required step:
+On first launch your browser will open directly to the **Settings** page. The **Monarch Connection** section (highlighted with a blue border) is the only required step:
 
-1. Enter your Monarch **email** and **password** — press Enter or click **Save Monarch Settings** after each field
-2. Click **Connect to Monarch** — a Chrome browser window will open automatically. Log in to Monarch when prompted; the window closes on its own after a successful login (~30–60 seconds)
-3. Select your **primary bill pay account** from the dropdown that appears, then click **Save Monarch Settings**
+1. Click **Connect to Monarch** — a Chrome browser window will open automatically. Log in to Monarch when prompted; the window closes on its own after a successful login (~30–60 seconds).
+2. Wait for your eligible Monarch accounts to populate, then select your **primary bill pay account** from the dropdown that appears. Click **Save Monarch Settings** to complete the setup.
 
-Once all three steps are complete, the **Go to Dashboard →** button at the top of the page will turn green. Click it to open your forecast.
+Once these two steps are complete, the **Go to Dashboard →** button at the top of the page will turn green. Click it to pull transactions and open your forecast - again, this may take 30 seconds or so. Patience, grasshopper.
 
-> **Forecast Settings** and **AI Insights** are both optional — the forecast defaults work just fine to start; you can configure them any time in Settings.
+> Down further on the Settings page are **AI Insights** and **Forecast Settings**. These are both optional on first run and can always be customized later. The forecast defaults work just fine to start.
 
-### Step 4 — Run your first forecast
+### Step 4 — View & customize your first forecast
 
-Click **Refresh Forecast** on the dashboard. This fetches your transaction history from Monarch (~1–2 minutes on first run). Your forecast chart will appear when it's done.
-
-**Optional — AI Analysis:** If you've added an API key in Settings → AI Insights, click **Run AI Analysis** to generate personalized insights about your spending patterns and upcoming expenses. The forecast works perfectly on its own without this step.
-
-After the first run, your data stays cached so the dashboard loads instantly on future visits.
+The first time you open the dashboard after setup the app fetches your transaction history from Monarch. Your forecast chart will appear at the top of the dashboard when it's done. After the first run, your data stays cached so the dashboard loads instantly on future visits.
 
 ---
 
@@ -144,12 +139,13 @@ After the first run, your data stays cached so the dashboard loads instantly on 
 
 | Setting | Description |
 |---|---|
+| Primary Account | Select the account used for bill payments - refresh the list if you don't see it |
+| AI Insights | Enable AI Insights (off by default); set your preferred provider (Anthropic, OpenAI, or Google), choose your preferred model and add your API key; set the default number of transaction months to retrieve for analysis;  customize how long before the analysis is labeled as stale. You can also kick off an AI Analysis right from Settings and see it run in a status window |
 | Forecast Horizon | How many days to project forward (default: 45) |
-| Buffer Threshold | Get a warning when your balance drops below this amount |
-| Exclude Recurring | Hide specific recurring items from the forecast by name |
-| Primary Account | Your main checking account used for bill payments |
-| AI Provider & Model | Choose Anthropic, OpenAI, or Google and the specific model |
-| Calendar Integration | Overlay calendar bill events onto the forecast chart |
+| Buffer Threshold | Get a warning when your balance drops below this dollar amount |
+| User Context & AI Corrections | Hand-edit your AI corrections in free text (also stored in user_context.md) |
+| Calendar Integration | Overlay custom calendar transaction events onto the forecast chart with Google Calendar, iCloud, or a custom ICS feed. |
+| App Settings | Change the default port, turn on debug mode, restart the server, or reset to factory defaults. |
 
 ---
 
