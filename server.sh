@@ -6,7 +6,7 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
-VENV="$HOME/.cache/balance-forecast-venv"
+VENV="$SCRIPT_DIR/.venv"
 PID_FILE="$SCRIPT_DIR/.server.pid"
 LOG_FILE="$SCRIPT_DIR/.server.log"
 PORT=5002
@@ -81,7 +81,7 @@ cmd_start() {
   _activate
   pip install -q -r requirements.txt
 
-  echo "Starting Balance Forecast..."
+  echo "Starting Butterfly Effect..."
   nohup python server.py > "$LOG_FILE" 2>&1 &
   echo $! > "$PID_FILE"
   sleep 1
