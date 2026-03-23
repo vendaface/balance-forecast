@@ -13,7 +13,7 @@ import uuid
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
-from flask import Flask, jsonify, redirect, render_template, request, url_for
+from flask import Flask, jsonify, redirect, render_template, request, url_for, Response
 
 from config import (
     _CONFIG_PATH,
@@ -988,6 +988,19 @@ def api_monarch_accounts():
     compact = [_compact_account(a) for a in accounts if _is_bill_paying_account(a)]
     _atomic_write(_ACCOUNTS_CACHE_FILE, json.dumps(compact, indent=2))
     return jsonify(compact)
+
+
+# ── Startup ping ───────────────────────────────────────────────────────────────
+import base64 as _b64
+_PING_PNG = _b64.b64decode(
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
+)
+
+@app.route("/_ping")
+def startup_ping():
+    """1×1 transparent PNG — lets startup.html poll via <img> without CORS."""
+    return Response(_PING_PNG, mimetype="image/png",
+                    headers={"Cache-Control": "no-store"})
 
 
 # ── Entry point ────────────────────────────────────────────────────────────────
