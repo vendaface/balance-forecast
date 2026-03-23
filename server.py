@@ -13,537 +13,56 @@ import uuid
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
-import yaml
-from dotenv import load_dotenv
 from flask import Flask, jsonify, redirect, render_template, request, url_for
 
-import calendar_client
-import forecast as forecast_engine
-import monarch_client
-
-load_dotenv()
+from config import (
+    _CONFIG_PATH,
+    _ENV_PATH,
+    _SENSITIVE_ENV_KEYS,
+    _deep_merge,
+    _env_key_status,
+    _is_first_run,
+    _load_config,
+    _read_env_value,
+    _save_config,
+    _setup_status,
+    _update_env_key,
+)
+from forecast_builder import (
+    _cache,
+    _clear_all_cache,
+    _clear_forecast_cache,
+    _friendly_error,
+    _get_forecast_data,
+    _monarch_raw,
+)
+from storage import (
+    _ACCOUNTS_CACHE_FILE,
+    _INSIGHTS_FILE,
+    _PAYMENT_MONTHLY_AMOUNTS_FILE,
+    _PAYMENT_OVERRIDES_FILE,
+    _PAYMENT_SKIPS_FILE,
+    _SCENARIOS_FILE,
+    _USER_CONTEXT_FILE,
+    _USER_CONTEXT_TEMPLATE,
+    _atomic_write,
+    _load_insights,
+    _load_payment_monthly_amounts,
+    _load_payment_overrides,
+    _load_payment_skips,
+    _load_scenarios,
+    _parse_corrections,
+    _write_corrections,
+)
 
 app = Flask(__name__)
-
-_CONFIG_PATH = Path(__file__).parent / "config.yaml"
-_INSIGHTS_FILE = Path(__file__).parent / "insights.json"
-_USER_CONTEXT_FILE = Path(__file__).parent / "user_context.md"
-_USER_CONTEXT_TEMPLATE = "# AI Corrections\n\n"  # default when file doesn't exist yet
-_PAYMENT_OVERRIDES_FILE = Path(__file__).parent / "payment_overrides.json"
-_PAYMENT_SKIPS_FILE = Path(__file__).parent / "payment_skips.json"
-_PAYMENT_MONTHLY_AMOUNTS_FILE = Path(__file__).parent / "payment_monthly_amounts.json"
-_SCENARIOS_FILE = Path(__file__).parent / "scenarios.json"
-_ENV_PATH = Path(__file__).parent / ".env"
-_ACCOUNTS_CACHE_FILE = Path(__file__).parent / "monarch_accounts_cache.json"
-_cache: dict = {}        # computed forecast — cleared by settings changes
-_monarch_raw: dict = {}  # raw Monarch data (balance, transactions, recurring)
-                         # survives settings changes; only reset by /refresh or account change
-
-
-def _atomic_write(path: Path, content: str) -> None:
-    """Write *content* to *path* atomically.
-
-    Writes to a sibling .tmp file first, then uses os.replace() to swap it
-    into place — so readers always see a complete file even if the process
-    is interrupted mid-write.
-    """
-    tmp = path.with_name(path.name + ".tmp")
-    tmp.write_text(content, encoding="utf-8")
-    os.replace(tmp, path)
-
-
-def _clear_forecast_cache():
-    """Clear computed forecast only. Raw Monarch data kept for fast recompute."""
-    _cache.clear()
-
-
-def _clear_all_cache():
-    """Full reset — clears both forecast and raw Monarch data, forcing a Playwright re-fetch."""
-    _cache.clear()
-    _monarch_raw.clear()
-
-# Keys that must never be sent to the browser as plaintext
-_SENSITIVE_ENV_KEYS = {
-    "ANTHROPIC_API_KEY", "OPENAI_API_KEY", "GOOGLE_API_KEY",
-}
 
 # AI analysis background-run state
 _ai_running: bool = False
 _ai_run_log: list = []
 
-# Regex patterns for parsing user_context.md (new flat format and old section format)
-_CORRECTION_LINE_RE = re.compile(
-    r'^- \[(\d{4}-\d{2}-\d{2})\] \[(Correction|Known Fact|Note)\] (.+)$'
-)
-_OLD_DATED_LINE_RE = re.compile(r'^- \[(\d{4}-\d{2}-\d{2})\] (.+)$')
 
-
-def _parse_corrections() -> list[dict]:
-    """Parse user_context.md into a list of correction dicts.
-
-    Supports both:
-      New flat format:  - [YYYY-MM-DD] [Type] text
-      Old section format: lines under ## Corrections / ## Known Facts / ## Notes
-    """
-    if not _USER_CONTEXT_FILE.exists():
-        return []
-    lines = _USER_CONTEXT_FILE.read_text().splitlines()
-    results: list[dict] = []
-    cur_type = "Correction"  # tracks section for old-format migration
-    for i, raw in enumerate(lines):
-        if raw.startswith("## Corrections"):
-            cur_type = "Correction"; continue
-        elif raw.startswith("## Known Facts"):
-            cur_type = "Known Fact"; continue
-        elif raw.startswith("## Notes"):
-            cur_type = "Note"; continue
-        elif raw.startswith("## "):
-            cur_type = "Correction"; continue
-        m = _CORRECTION_LINE_RE.match(raw)
-        if m:
-            results.append({"id": f"c{i}", "date": m.group(1),
-                            "type": m.group(2), "text": m.group(3), "raw": raw})
-            continue
-        m2 = _OLD_DATED_LINE_RE.match(raw)
-        if m2:
-            results.append({"id": f"c{i}", "date": m2.group(1),
-                            "type": cur_type, "text": m2.group(2), "raw": raw})
-    return results
-
-
-def _write_corrections(corrections: list[dict]) -> None:
-    """Write corrections list back to user_context.md in new flat format."""
-    file_lines = ["# AI Corrections", ""]
-    for c in corrections:
-        file_lines.append(f"- [{c['date']}] [{c['type']}] {c['text']}")
-    _atomic_write(_USER_CONTEXT_FILE, "\n".join(file_lines) + "\n")
-
-
-def _check_list_schema(
-    path: Path,
-    data: object,
-    required_str_keys: tuple[str, ...] = (),
-    required_num_keys: tuple[str, ...] = (),
-) -> list[dict]:
-    """
-    Validate that *data* is a list of dicts with the expected key types.
-
-    Returns a filtered list containing only records that pass validation.
-    Logs a warning (to stdout) for each dropped record — never raises.
-    """
-    if not isinstance(data, list):
-        print(f"[schema] {path.name}: expected a list, got {type(data).__name__} — ignoring file")
-        return []
-    good = []
-    for i, item in enumerate(data):
-        if not isinstance(item, dict):
-            print(f"[schema] {path.name}[{i}]: expected dict, got {type(item).__name__} — skipping")
-            continue
-        bad = False
-        for k in required_str_keys:
-            if not isinstance(item.get(k), str) or not item[k].strip():
-                print(f"[schema] {path.name}[{i}]: missing/invalid string field '{k}' — skipping")
-                bad = True
-                break
-        if not bad:
-            for k in required_num_keys:
-                if not isinstance(item.get(k), (int, float)):
-                    print(f"[schema] {path.name}[{i}]: missing/invalid numeric field '{k}' — skipping")
-                    bad = True
-                    break
-        if not bad:
-            good.append(item)
-    return good
-
-
-def _load_scenarios() -> list[dict]:
-    """Load user-defined scenario events from scenarios.json."""
-    if not _SCENARIOS_FILE.exists():
-        return []
-    try:
-        data = json.loads(_SCENARIOS_FILE.read_text())
-        return _check_list_schema(
-            _SCENARIOS_FILE, data,
-            required_str_keys=("date", "description"),
-            required_num_keys=("amount",),
-        )
-    except Exception:
-        return []
-
-
-def _expand_scenario_events(scenarios: list[dict], horizon_days: int) -> list[dict]:
-    """
-    Expand scenario events into individual occurrences within the forecast horizon.
-    One-time scenarios pass through unchanged. Recurring scenarios are fanned out
-    into one event per occurrence using the same engine as Monarch recurring items.
-    """
-    from datetime import date as _date, timedelta as _timedelta
-    import forecast as forecast_engine
-
-    today = _date.today()
-    horizon = today + _timedelta(days=horizon_days)
-    result = []
-    for s in scenarios:
-        freq = s.get("frequency") or "one-time"
-        if freq == "one-time":
-            result.append({**s, "source": "scenario"})
-        else:
-            item = {"frequency": freq, "baseDate": s["date"]}
-            dates = forecast_engine._next_dates_for_recurring(item, today, horizon)
-            for d in dates:
-                result.append({**s, "date": d.isoformat(), "source": "scenario"})
-    return result
-
-
-def _load_payment_overrides() -> dict:
-    """Load {name_lower: {name, amount, note, updated}} from payment_overrides.json."""
-    if not _PAYMENT_OVERRIDES_FILE.exists():
-        return {}
-    try:
-        data = json.loads(_PAYMENT_OVERRIDES_FILE.read_text())
-        if not isinstance(data, dict):
-            print(f"[schema] {_PAYMENT_OVERRIDES_FILE.name}: expected a dict — ignoring file")
-            return {}
-        # Filter entries whose value is not a dict or is missing required keys
-        good = {}
-        for k, v in data.items():
-            if not isinstance(v, dict):
-                print(f"[schema] {_PAYMENT_OVERRIDES_FILE.name}[{k!r}]: expected dict value — skipping")
-                continue
-            if not isinstance(v.get("name"), str) or not isinstance(v.get("amount"), (int, float)):
-                print(f"[schema] {_PAYMENT_OVERRIDES_FILE.name}[{k!r}]: missing name/amount — skipping")
-                continue
-            good[k] = v
-        return good
-    except Exception:
-        return {}
-
-
-def _load_payment_skips() -> list:
-    """Load [{name, month, note}] from payment_skips.json."""
-    if not _PAYMENT_SKIPS_FILE.exists():
-        return []
-    try:
-        data = json.loads(_PAYMENT_SKIPS_FILE.read_text())
-        return _check_list_schema(
-            _PAYMENT_SKIPS_FILE, data,
-            required_str_keys=("name", "month"),
-        )
-    except Exception:
-        return []
-
-
-def _load_payment_monthly_amounts() -> list:
-    """Load [{name, month, amount, note}] from payment_monthly_amounts.json."""
-    if not _PAYMENT_MONTHLY_AMOUNTS_FILE.exists():
-        return []
-    try:
-        data = json.loads(_PAYMENT_MONTHLY_AMOUNTS_FILE.read_text())
-        return _check_list_schema(
-            _PAYMENT_MONTHLY_AMOUNTS_FILE, data,
-            required_str_keys=("name",),
-            required_num_keys=("amount",),
-        )
-    except Exception:
-        return []
-
-
-def _env_key_status(key: str) -> str:
-    """Return 'configured' or 'not_configured' — never the actual value.
-    Reads .env directly so it's accurate even if the server started before the key was added."""
-    # Fast path: already in os.environ (set at startup or by _update_env_key)
-    if os.getenv(key, "").strip():
-        return "configured"
-    # Fallback: read .env file directly
-    if _ENV_PATH.exists():
-        for line in _ENV_PATH.read_text().splitlines():
-            if line.startswith(f"{key}="):
-                val = line[len(f"{key}="):].strip().strip('"').strip("'")
-                if val:
-                    os.environ[key] = val  # sync into os.environ for future calls
-                    return "configured"
-    return "not_configured"
-
-
-def _update_env_key(key: str, value: str) -> None:
-    """Update or add key=value in .env; also update os.environ in-memory."""
-    lines = _ENV_PATH.read_text().splitlines() if _ENV_PATH.exists() else []
-    found = False
-    for i, line in enumerate(lines):
-        if line.startswith(f"{key}="):
-            lines[i] = f"{key}={value}"
-            found = True
-            break
-    if not found:
-        lines.append(f"{key}={value}")
-    _atomic_write(_ENV_PATH, "\n".join(lines) + "\n")
-    os.environ[key] = value  # pick up immediately without restart
-
-
-def _save_config(config: dict) -> None:
-    """Write config dict back to config.yaml."""
-    _atomic_write(_CONFIG_PATH, yaml.dump(config, default_flow_style=False, allow_unicode=True))
-
-
-def _deep_merge(base: dict, updates: dict) -> dict:
-    """Recursively merge updates into base, returning a new dict."""
-    result = dict(base)
-    for k, v in updates.items():
-        if isinstance(v, dict) and isinstance(result.get(k), dict):
-            result[k] = _deep_merge(result[k], v)
-        else:
-            result[k] = v
-    return result
-
-
-def _load_config() -> dict:
-    if not _CONFIG_PATH.exists():
-        # Bootstrap from example rather than crashing (e.g. if user ran server.py directly)
-        example = _CONFIG_PATH.parent / "config.yaml.example"
-        if example.exists():
-            import shutil
-            shutil.copy(example, _CONFIG_PATH)
-        else:
-            raise RuntimeError("config.yaml not found. Copy config.yaml.example and fill in values.")
-    return yaml.safe_load(_CONFIG_PATH.read_text())
-
-
-def _load_insights() -> dict | None:
-    """Load insights.json if it exists. Returns None if missing."""
-    if not _INSIGHTS_FILE.exists():
-        return None
-    try:
-        return json.loads(_INSIGHTS_FILE.read_text())
-    except Exception:
-        return None
-
-
-def _is_first_run() -> bool:
-    """True if minimum required setup is not complete."""
-    return not _setup_status()["complete"]
-
-
-def _setup_status() -> dict:
-    """Return which required setup items are complete and which are still missing."""
-    try:
-        account_id = _load_config().get("monarch", {}).get("checking_account_id", "")
-    except Exception:
-        account_id = ""
-    account_ok = bool(account_id and account_id != "PASTE_ACCOUNT_ID_HERE")
-    missing = [] if account_ok else ["primary account selection"]
-    return {
-        "complete":   not missing,
-        "missing":    missing,
-        "account_ok": account_ok,
-    }
-
-
-def _insights_are_fresh(config: dict) -> bool:
-    """Return True if insights.json exists and is within the max-age window."""
-    insights = _load_insights()
-    if not insights:
-        return False
-    generated_at = insights.get("generated_at", "")
-    if not generated_at:
-        return False
-    try:
-        age = datetime.now() - datetime.fromisoformat(generated_at)
-        max_age_hours = config.get("ai", {}).get("insights_max_age_hours", 26)
-        return age.total_seconds() < max_age_hours * 3600
-    except Exception:
-        return False
-
-
-def _matches_recurring(desc: str, amount: float, recurring: list[dict]) -> bool:
-    """Return True if a predicted event likely duplicates a Monarch recurring item.
-
-    Requires BOTH conditions to avoid false positives:
-      1. Amounts within $1 (tight tolerance — two different $500 bills should not collide)
-      2. At least one significant word (≥4 chars) shared between the predicted description
-         and the Monarch recurring item name.
-    """
-    desc_words = {w.lower() for w in desc.split() if len(w) >= 4}
-    for r in recurring:
-        r_amt = r.get("amount")
-        if r_amt is None:
-            continue
-        if abs(float(r_amt) - amount) > 1.0:
-            continue
-        r_name = r.get("name") or r.get("description") or ""
-        r_words = {w.lower() for w in r_name.split() if len(w) >= 4}
-        if desc_words & r_words:
-            return True
-    return False
-
-
-def _load_predicted_events(config: dict) -> list[dict]:
-    """Load AI-predicted expenses from insights.json when fresh."""
-    if not _insights_are_fresh(config):
-        return []
-    insights = _load_insights()
-    if not insights:
-        return []
-    return insights.get("predicted_expenses", [])
-
-
-def _friendly_error(e: Exception) -> str:
-    """Convert common internal exceptions to user-friendly messages."""
-    msg = str(e)
-    if "checking_account_id" in msg or "Account ID" in msg or "No primary account" in msg:
-        return (
-            "No primary account selected. "
-            "Go to Settings → Monarch Connection, click 'Connect to Monarch', "
-            "select your checking account, and save."
-        )
-    if "login" in msg.lower() or "session" in msg.lower():
-        return (
-            "Monarch session expired or login failed. "
-            "The app will open a browser window to re-authenticate on the next refresh."
-        )
-    if any(k in msg for k in ("ANTHROPIC_API_KEY", "OPENAI_API_KEY", "GOOGLE_API_KEY")) \
-            or "anthropic" in msg.lower():
-        return (
-            "API key is not configured. "
-            "Go to Settings → AI Insights, select your AI provider, and add your key."
-        )
-    # Generic fallback — still show the message but prefix it
-    return f"Forecast error: {msg}"
-
-
-def _get_forecast_data(config: dict) -> dict:
-    if _cache:
-        return _cache
-
-    account_id = config["monarch"]["checking_account_id"]
-    if not account_id or account_id == "PASTE_ACCOUNT_ID_HERE":
-        raise RuntimeError(
-            "Set monarch.checking_account_id in config.yaml. "
-            "Run: python monarch_client.py --list-accounts"
-        )
-
-    horizon = config["forecast"]["horizon_days"]
-    buffer = config["forecast"]["buffer_threshold"]
-
-    if _monarch_raw:
-        # Fast path — raw Monarch data cached; skip the slow Playwright fetch entirely.
-        # Exclusions, overrides, and scenario/AI events are re-applied fresh below.
-        current_balance = _monarch_raw["balance"]
-        transactions    = _monarch_raw["transactions"]
-        base_recurring  = _monarch_raw["recurring"]
-    else:
-        # Slow path — fetch from Monarch via Playwright (30-60 s)
-        current_balance, transactions, base_recurring = monarch_client.get_data(
-            account_id, history_days=horizon
-        )
-        _monarch_raw.update({
-            "balance":      current_balance,
-            "transactions": transactions,
-            "recurring":    base_recurring,
-        })
-
-    # Work from a copy so overrides/exclusions don't mutate the cached raw recurring list
-    recurring = list(base_recurring)
-
-    # Filter out recurring items the user has excluded (e.g. credit-card-side duplicates)
-    exclude = {n.lower() for n in config.get("forecast", {}).get("exclude_recurring", [])}
-    if exclude:
-        recurring = [r for r in recurring if (r.get("name") or "").lower() not in exclude]
-
-    # Apply user-specified payment amount overrides (e.g. known credit card statement balance)
-    overrides = _load_payment_overrides()
-    if overrides:
-        patched = []
-        for item in recurring:
-            key = (item.get("name") or "").lower()
-            if key in overrides:
-                override_amt = float(overrides[key]["amount"])
-                if abs(override_amt) < 0.01:
-                    continue  # $0 override = suppress this payment from the forecast entirely
-                item = dict(item)  # shallow copy — don't mutate Monarch data
-                item["amount"] = override_amt
-            patched.append(item)
-        recurring = patched
-
-    # Fetch from Google Calendar (optional — set calendar.enabled: false in config to skip)
-    cal_enabled = config.get("calendar", {}).get("enabled", True)
-    if cal_enabled:
-        try:
-            cal_events = calendar_client.get_events(horizon_days=horizon)
-        except RuntimeError as e:
-            cal_events = []
-            app.logger.warning(f"Calendar fetch skipped: {e}")
-    else:
-        cal_events = []
-
-    # Load AI-predicted events from insights.json (if fresh)
-    predicted_events = _load_predicted_events(config)
-
-    # Drop predicted events that duplicate a recurring item already covered by a payment override.
-    # Claude sometimes predicts credit card payments that are already in Monarch recurring — if the
-    # user has set an override for that card, the recurring item IS the authoritative entry.
-    if predicted_events and overrides:
-        override_keywords = set(overrides.keys())  # already lowercase
-        def _matches_override(desc: str) -> bool:
-            desc_lower = desc.lower()
-            return any(kw in desc_lower for kw in override_keywords)
-        before = len(predicted_events)
-        predicted_events = [p for p in predicted_events if not _matches_override(p.get("description", ""))]
-        dropped = before - len(predicted_events)
-        if dropped:
-            app.logger.info(f"Dropped {dropped} AI-predicted event(s) already covered by payment overrides")
-
-    # Also drop predicted events that duplicate any Monarch recurring item
-    # (e.g. AI predicts "Brown University tuition" which is already in Monarch as "Brown University")
-    if predicted_events:
-        before = len(predicted_events)
-        predicted_events = [
-            p for p in predicted_events
-            if not _matches_recurring(
-                p.get("description", ""),
-                float(p.get("amount") or 0),
-                recurring,
-            )
-        ]
-        dropped = before - len(predicted_events)
-        if dropped:
-            app.logger.info(
-                f"Dropped {dropped} AI-predicted event(s) already present in Monarch recurring"
-            )
-
-    if predicted_events:
-        app.logger.info(f"Injecting {len(predicted_events)} AI-predicted events into forecast")
-
-    # Load user scenario events and merge with AI predictions
-    # Scenarios bypass the payment-override dedup filter above (they're intentional one-offs)
-    scenario_events = _load_scenarios()
-    if scenario_events:
-        app.logger.info(f"Injecting {len(scenario_events)} scenario event(s) into forecast")
-    scenario_injected = _expand_scenario_events(scenario_events, horizon)
-    all_injected = (predicted_events or []) + scenario_injected
-
-    # Store recurring list for Settings → View Recurring Items (before forecast build)
-    _cache["_recurring_raw"] = recurring
-
-    # Build forecast
-    payment_skips           = _load_payment_skips()
-    payment_monthly_amounts = _load_payment_monthly_amounts()
-    result = forecast_engine.build_forecast(
-        current_balance=current_balance,
-        recurring_transactions=recurring,
-        calendar_events=cal_events,
-        predicted_events=all_injected or None,
-        buffer_threshold=buffer,
-        horizon_days=horizon,
-        payment_skips=payment_skips or None,
-        payment_monthly_amounts=payment_monthly_amounts or None,
-    )
-    result["refreshed_at"] = datetime.now().strftime("%A %b %-d, %Y at %-I:%M %p")
-    result["horizon_days"] = horizon
-    result["has_ai_predictions"] = bool(predicted_events)
-
-    _cache.update(result)
-    return _cache
-
+# ── Dashboard ──────────────────────────────────────────────────────────────────
 
 @app.route("/")
 def index():
@@ -560,9 +79,11 @@ def index():
 
 @app.route("/refresh")
 def refresh():
-    _clear_all_cache()  # force full Monarch re-fetch on next load
+    _clear_all_cache()   # force full Monarch re-fetch on next load
     return redirect(url_for("index"))
 
+
+# ── API: forecast ──────────────────────────────────────────────────────────────
 
 @app.route("/api/forecast")
 def api_forecast():
@@ -573,6 +94,8 @@ def api_forecast():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+
+# ── API: AI insights ───────────────────────────────────────────────────────────
 
 @app.route("/api/ai-insights")
 def api_ai_insights():
@@ -587,12 +110,16 @@ def api_ai_insights():
         ai_cfg = config.get("ai", {})
         ai_enabled = ai_cfg.get("enabled", False)
         provider = ai_cfg.get("provider", "anthropic")
-        key_map = {"anthropic": "ANTHROPIC_API_KEY", "openai": "OPENAI_API_KEY", "google": "GOOGLE_API_KEY"}
+        key_map = {
+            "anthropic": "ANTHROPIC_API_KEY",
+            "openai":    "OPENAI_API_KEY",
+            "google":    "GOOGLE_API_KEY",
+        }
         api_key_set = _env_key_status(key_map.get(provider, "ANTHROPIC_API_KEY")) == "configured"
         return jsonify({
-            "status": "not_generated",
+            "status":   "not_generated",
             "ai_ready": ai_enabled and api_key_set,
-            "message": "Run 'python ai_daily.py' to generate AI insights.",
+            "message":  "Run 'python ai_daily.py' to generate AI insights.",
         }), 404
 
     try:
@@ -623,6 +150,8 @@ def api_ai_insights():
 
     return jsonify(insights)
 
+
+# ── API: user context / corrections ───────────────────────────────────────────
 
 @app.route("/api/user-context")
 def api_user_context():
@@ -661,7 +190,7 @@ def api_set_corrections():
         raw_to_del = (body.get("raw") or "").strip()
         corrections = [c for c in corrections if c["raw"].strip() != raw_to_del]
     else:  # add
-        text = (body.get("text") or "").strip()
+        text  = (body.get("text") or "").strip()
         ctype = (body.get("type") or "Correction").strip()
         if ctype not in ("Correction", "Known Fact", "Note"):
             ctype = "Correction"
@@ -687,7 +216,7 @@ def api_feedback():
     if not text:
         return jsonify({"ok": False, "error": "text is required"}), 400
 
-    today = date.today().isoformat()
+    today  = date.today().isoformat()
     bullet = f"- [{today}] {text}"
 
     if _USER_CONTEXT_FILE.exists():
@@ -703,6 +232,8 @@ def api_feedback():
     _atomic_write(_USER_CONTEXT_FILE, content)
     return jsonify({"ok": True, "bullet": bullet})
 
+
+# ── API: payment overrides ─────────────────────────────────────────────────────
 
 @app.route("/api/payment-overrides", methods=["GET"])
 def api_get_payment_overrides():
@@ -733,16 +264,18 @@ def api_set_payment_override():
             return jsonify({"error": "amount required"}), 400
         note = (body.get("note") or "").strip()
         overrides[name.lower()] = {
-            "name": name,
-            "amount": float(amount),  # sign preserved from client (inflow stays positive)
-            "note": note,
+            "name":    name,
+            "amount":  float(amount),   # sign preserved from client (inflow stays positive)
+            "note":    note,
             "updated": datetime.now().strftime("%Y-%m-%d"),
         }
 
     _atomic_write(_PAYMENT_OVERRIDES_FILE, json.dumps(overrides, indent=2))
-    _clear_forecast_cache()  # recompute forecast with new override (Monarch data reused)
+    _clear_forecast_cache()   # recompute forecast with new override (Monarch data reused)
     return jsonify({"ok": True})
 
+
+# ── API: payment skips ─────────────────────────────────────────────────────────
 
 @app.route("/api/payment-skips", methods=["GET", "POST"])
 def api_payment_skips():
@@ -755,7 +288,7 @@ def api_payment_skips():
     if request.method == "GET":
         return jsonify(_load_payment_skips())
 
-    body = request.get_json(force=True) or {}
+    body  = request.get_json(force=True) or {}
     name  = (body.get("name") or "").strip()
     month = (body.get("month") or "").strip()   # "YYYY-MM"
     if not name or not month:
@@ -781,6 +314,8 @@ def api_payment_skips():
     return jsonify({"ok": True})
 
 
+# ── API: payment monthly amounts ───────────────────────────────────────────────
+
 @app.route("/api/payment-monthly-amounts", methods=["GET", "POST"])
 def api_payment_monthly_amounts():
     """
@@ -796,10 +331,10 @@ def api_payment_monthly_amounts():
     body  = request.get_json(force=True) or {}
     name  = (body.get("name") or "").strip()
     # Accept "date" (YYYY-MM-DD, new) or "month" (YYYY-MM, legacy)
-    date  = (body.get("date") or "").strip()
-    month = (body.get("month") or "").strip()
-    key_field = "date" if date else "month"
-    key_value = date if date else month
+    date_val = (body.get("date") or "").strip()
+    month    = (body.get("month") or "").strip()
+    key_field = "date" if date_val else "month"
+    key_value = date_val if date_val else month
     if not name or not key_value:
         return jsonify({"error": "name and date required"}), 400
 
@@ -826,6 +361,8 @@ def api_payment_monthly_amounts():
     return jsonify({"ok": True})
 
 
+# ── API: scenarios ─────────────────────────────────────────────────────────────
+
 @app.route("/api/scenarios", methods=["GET"])
 def api_get_scenarios():
     """Return the current list of user scenario events."""
@@ -841,7 +378,7 @@ def api_set_scenarios():
     Clear:  {"action": "clear"}
     Returns: {"ok": true}
     """
-    body = request.get_json(force=True) or {}
+    body   = request.get_json(force=True) or {}
     action = body.get("action", "add")
     scenarios = _load_scenarios()
 
@@ -851,9 +388,9 @@ def api_set_scenarios():
         sid = body.get("id")
         scenarios = [s for s in scenarios if s.get("id") != sid]
     else:  # add
-        date_str = (body.get("date") or "").strip()
+        date_str    = (body.get("date") or "").strip()
         description = (body.get("description") or "").strip()
-        amount = body.get("amount")
+        amount      = body.get("amount")
         if not date_str or not description or amount is None:
             return jsonify({"error": "date, description, and amount are required"}), 400
         try:
@@ -862,32 +399,20 @@ def api_set_scenarios():
             return jsonify({"error": "date must be YYYY-MM-DD"}), 400
         frequency = (body.get("frequency") or "one-time").strip()
         scenarios.append({
-            "id": f"s{uuid.uuid4().hex[:8]}",
-            "date": date_str,
+            "id":          f"s{uuid.uuid4().hex[:8]}",
+            "date":        date_str,
             "description": description,
-            "amount": float(amount),  # positive = inflow, negative = outflow
-            "frequency": frequency,
-            "created": datetime.now().strftime("%Y-%m-%d"),
+            "amount":      float(amount),   # positive = inflow, negative = outflow
+            "frequency":   frequency,
+            "created":     datetime.now().strftime("%Y-%m-%d"),
         })
 
     _atomic_write(_SCENARIOS_FILE, json.dumps(scenarios, indent=2))
-    _clear_forecast_cache()  # recompute forecast with updated scenarios (Monarch data reused)
+    _clear_forecast_cache()   # recompute forecast with updated scenarios (Monarch data reused)
     return jsonify({"ok": True})
 
 
-# ── Settings page ─────────────────────────────────────────────────────────────
-
-def _read_env_value(key: str) -> str:
-    """Return the actual value of an env key (from os.environ or .env file). Empty string if not set."""
-    val = os.getenv(key, "").strip()
-    if val:
-        return val
-    if _ENV_PATH.exists():
-        for line in _ENV_PATH.read_text().splitlines():
-            if line.startswith(f"{key}="):
-                return line[len(f"{key}="):].strip().strip('"').strip("'")
-    return ""
-
+# ── Settings page ──────────────────────────────────────────────────────────────
 
 @app.route("/settings")
 def settings():
@@ -904,7 +429,7 @@ def settings():
         env_status={k: _env_key_status(k) for k in _SENSITIVE_ENV_KEYS},
         insights_meta={
             "generated_at": insights.get("generated_at", ""),
-            "token_usage": insights.get("token_usage"),
+            "token_usage":  insights.get("token_usage"),
         },
         user_context=_USER_CONTEXT_FILE.read_text() if _USER_CONTEXT_FILE.exists() else "",
         setup_mode=setup_mode,
@@ -916,8 +441,8 @@ def settings():
 def api_settings_forecast():
     body = request.get_json(force=True) or {}
     try:
-        horizon = int(body.get("horizon_days", 45))
-        buffer_val = float(body.get("buffer_threshold", 1500))
+        horizon     = int(body.get("horizon_days", 45))
+        buffer_val  = float(body.get("buffer_threshold", 1500))
         exclude_raw = body.get("exclude_recurring", "")
         exclude_list = [ln.strip() for ln in exclude_raw.splitlines() if ln.strip()]
         if not (1 <= horizon <= 365):
@@ -929,12 +454,12 @@ def api_settings_forecast():
 
     config = _load_config()
     config = _deep_merge(config, {"forecast": {
-        "horizon_days": horizon,
+        "horizon_days":     horizon,
         "buffer_threshold": buffer_val,
         "exclude_recurring": exclude_list,
     }})
     _save_config(config)
-    _clear_forecast_cache()  # recompute with new forecast settings (Monarch data reused)
+    _clear_forecast_cache()   # recompute with new forecast settings (Monarch data reused)
     return jsonify({"ok": True})
 
 
@@ -942,23 +467,23 @@ def api_settings_forecast():
 def api_settings_ai():
     body = request.get_json(force=True) or {}
     try:
-        enabled = bool(body.get("enabled", True))
-        provider = (body.get("provider") or "anthropic").strip()
-        model = (body.get("model") or "claude-sonnet-4-5").strip()
+        enabled        = bool(body.get("enabled", True))
+        provider       = (body.get("provider") or "anthropic").strip()
+        model          = (body.get("model") or "claude-sonnet-4-5").strip()
         history_months = int(body.get("history_months", 13))
-        max_age_hours = int(body.get("insights_max_age_hours", 26))
-        api_key     = (body.get("anthropic_api_key") or "").strip()
-        openai_key  = (body.get("openai_api_key") or "").strip()
-        google_key  = (body.get("google_api_key") or "").strip()
+        max_age_hours  = int(body.get("insights_max_age_hours", 26))
+        api_key        = (body.get("anthropic_api_key") or "").strip()
+        openai_key     = (body.get("openai_api_key") or "").strip()
+        google_key     = (body.get("google_api_key") or "").strip()
     except (ValueError, TypeError) as e:
         return jsonify({"error": str(e)}), 400
 
     config = _load_config()
     config = _deep_merge(config, {"ai": {
-        "enabled": enabled,
-        "provider": provider,
-        "model": model,
-        "history_months": history_months,
+        "enabled":              enabled,
+        "provider":             provider,
+        "model":                model,
+        "history_months":       history_months,
         "insights_max_age_hours": max_age_hours,
     }})
     _save_config(config)
@@ -967,40 +492,43 @@ def api_settings_ai():
     if openai_key: _update_env_key("OPENAI_API_KEY",    openai_key)
     if google_key: _update_env_key("GOOGLE_API_KEY",    google_key)
 
-    _clear_forecast_cache()  # AI settings don't need Monarch re-fetch
+    _clear_forecast_cache()   # AI settings don't need Monarch re-fetch
     return jsonify({"ok": True})
 
 
 @app.route("/api/settings/monarch", methods=["POST"])
 def api_settings_monarch():
-    body = request.get_json(force=True) or {}
+    body       = request.get_json(force=True) or {}
     account_id = (body.get("checking_account_id") or "").strip()
 
     if account_id:
         config = _load_config()
         # Look up a friendly account name from the 24-hour accounts cache (if available)
-        acct_name = account_id  # fallback: display raw ID
+        acct_name = account_id   # fallback: display raw ID
         if _ACCOUNTS_CACHE_FILE.exists():
             try:
                 cached_accts = json.loads(_ACCOUNTS_CACHE_FILE.read_text())
-                match = next((a for a in cached_accts if str(a.get("id", "")) == str(account_id)), None)
+                match = next(
+                    (a for a in cached_accts if str(a.get("id", "")) == str(account_id)),
+                    None,
+                )
                 if match:
                     acct_name = match.get("name", account_id)
             except Exception:
                 pass
         config = _deep_merge(config, {"monarch": {
-            "checking_account_id": account_id,
+            "checking_account_id":   account_id,
             "checking_account_name": acct_name,
         }})
         _save_config(config)
-        _clear_all_cache()  # new account = need fresh Monarch data
+        _clear_all_cache()   # new account = need fresh Monarch data
 
     return jsonify({"ok": True})
 
 
 @app.route("/api/settings/calendar", methods=["POST"])
 def api_settings_calendar():
-    body = request.get_json(force=True) or {}
+    body    = request.get_json(force=True) or {}
     enabled = bool(body.get("enabled", False))
     ics_url = (body.get("ics_url") or "").strip()
     service = (body.get("service") or "google").strip()
@@ -1011,7 +539,7 @@ def api_settings_calendar():
         cal_updates["ics_url"] = ics_url
     config = _deep_merge(config, {"calendar": cal_updates})
     _save_config(config)
-    _clear_forecast_cache()  # calendar refetched on next recompute (Monarch data reused)
+    _clear_forecast_cache()   # calendar refetched on next recompute (Monarch data reused)
     return jsonify({"ok": True})
 
 
@@ -1019,7 +547,7 @@ def api_settings_calendar():
 def api_settings_app():
     body = request.get_json(force=True) or {}
     try:
-        port = int(body.get("port", 5002))
+        port  = int(body.get("port", 5002))
         debug = bool(body.get("debug", False))
         if not (1024 <= port <= 65535):
             return jsonify({"error": "port must be 1024–65535"}), 400
@@ -1034,13 +562,13 @@ def api_settings_app():
 
 @app.route("/api/settings/user-context", methods=["POST"])
 def api_settings_user_context():
-    body = request.get_json(force=True) or {}
+    body    = request.get_json(force=True) or {}
     content = body.get("content", "")
     _atomic_write(_USER_CONTEXT_FILE, content)
     return jsonify({"ok": True})
 
 
-# ── AI analysis runner ────────────────────────────────────────────────────────
+# ── AI analysis runner ─────────────────────────────────────────────────────────
 
 @app.route("/api/run-ai-analysis", methods=["POST"])
 def api_run_ai_analysis():
@@ -1060,8 +588,7 @@ def api_run_ai_analysis():
         ai_provider = _load_config().get("ai", {}).get("provider", "anthropic")
     except Exception:
         ai_provider = "anthropic"
-    _key_map = {"anthropic": "ANTHROPIC_API_KEY", "openai": "OPENAI_API_KEY", "google": "GOOGLE_API_KEY"}
-    _label_map = {"anthropic": "Anthropic", "openai": "OpenAI", "google": "Google"}
+    _key_map   = {"anthropic": "ANTHROPIC_API_KEY", "openai": "OPENAI_API_KEY", "google": "GOOGLE_API_KEY"}
     required_key = _key_map.get(ai_provider, "ANTHROPIC_API_KEY")
     if _env_key_status(required_key) == "not_configured":
         return jsonify({"ok": False, "error": (
@@ -1086,7 +613,7 @@ def api_run_ai_analysis():
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
                 text=True,
-                bufsize=1,  # line-buffered so output arrives incrementally
+                bufsize=1,   # line-buffered so output arrives incrementally
                 cwd=str(Path(__file__).parent),
             )
             # Kill the process after 15 minutes if it hasn't finished
@@ -1105,7 +632,7 @@ def api_run_ai_analysis():
                 timer.cancel()
         finally:
             _ai_running = False
-            _clear_forecast_cache()  # recompute forecast to pick up new AI predictions
+            _clear_forecast_cache()   # recompute forecast to pick up new AI predictions
 
     threading.Thread(target=_run, daemon=True).start()
     return jsonify({"ok": True, "message": "AI analysis started"})
@@ -1116,12 +643,14 @@ def api_ai_analysis_status():
     """Poll this to track the background AI run."""
     insights = _load_insights() or {}
     return jsonify({
-        "running": _ai_running,
-        "log": _ai_run_log[-20:],  # last 20 lines of output
+        "running":      _ai_running,
+        "log":          _ai_run_log[-20:],   # last 20 lines of output
         "generated_at": insights.get("generated_at", ""),
-        "token_usage": insights.get("token_usage"),
+        "token_usage":  insights.get("token_usage"),
     })
 
+
+# ── Server management ──────────────────────────────────────────────────────────
 
 @app.route("/api/ping")
 def api_ping():
@@ -1150,8 +679,9 @@ def api_factory_reset():
     Does NOT delete the Python venv (needed for restart via server.sh).
     """
     def _do_reset():
-        import time, shutil
-        time.sleep(0.5)  # let the HTTP response leave first
+        import time
+        import shutil
+        time.sleep(0.5)   # let the HTTP response leave first
 
         base = Path(__file__).parent
 
@@ -1184,15 +714,12 @@ def api_factory_reset():
             except Exception: pass
 
         # macOS numbered duplicates of source/script files
-        # Pattern "* [0-9]*.<ext>" matches "server 2.py", "run 2.sh" etc.
-        # but never matches "server.py", "run.sh" (no space before the dot).
         for pat in ("* [0-9]*.py", "* [0-9]*.sh", "* [0-9]*.command"):
             for f in base.glob(pat):
                 try: f.unlink(missing_ok=True)
                 except Exception: pass
 
-        # __pycache__ directories — delete .pyc files individually first (more
-        # reliable than rmtree when files may be locked), then remove the dirs.
+        # __pycache__ directories
         for pyc in list(base.rglob("*.pyc")):
             try: pyc.unlink(missing_ok=True)
             except Exception: pass
@@ -1212,6 +739,8 @@ def api_factory_reset():
     return jsonify({"ok": True})
 
 
+# ── Recurring items ────────────────────────────────────────────────────────────
+
 @app.route("/api/recurring-items")
 def api_recurring_items():
     """Return the recurring items from the last forecast fetch (cached).
@@ -1219,18 +748,20 @@ def api_recurring_items():
     items = _cache.get("_recurring_raw", [])
     if not items:
         return jsonify({
-            "items": [],
+            "items":   [],
             "message": "Refresh the forecast first to load recurring items.",
         })
     result = []
     for r in sorted(items, key=lambda x: (x.get("name") or "").lower()):
         result.append({
-            "name": r.get("name") or r.get("description") or "Unknown",
-            "amount": round(float(r.get("amount") or 0), 2),
+            "name":      r.get("name") or r.get("description") or "Unknown",
+            "amount":    round(float(r.get("amount") or 0), 2),
             "frequency": r.get("frequency") or "?",
         })
     return jsonify({"items": result})
 
+
+# ── Monarch accounts ───────────────────────────────────────────────────────────
 
 # Account types eligible as a primary bill-paying account
 _HELOC_KEYWORDS = ("equity", "heloc", "line of credit")
@@ -1238,41 +769,41 @@ _HELOC_KEYWORDS = ("equity", "heloc", "line of credit")
 
 def _is_bill_paying_account(a: dict) -> bool:
     """Return True if the Monarch account is eligible as a primary bill-paying account.
+
     Keeps: depository (all), HELOC (loan with equity/heloc/line-of-credit in name).
-    Drops: credit cards (no available-credit data), brokerage, real_estate, vehicle,
-           and non-HELOC loans (mortgage, auto, student).
+    Drops: credit cards, brokerage, real_estate, vehicle, and non-HELOC loans.
     """
-    raw_type = a.get("type") or {}
+    raw_type  = a.get("type") or {}
     type_name = raw_type.get("name", "") if isinstance(raw_type, dict) else str(raw_type)
     if type_name == "depository":
         return True
     if type_name == "loan":
         name_lower = (a.get("displayName") or a.get("name") or "").lower()
         return any(kw in name_lower for kw in _HELOC_KEYWORDS)
-    return False  # credit, brokerage, real_estate, vehicle → excluded
+    return False   # credit, brokerage, real_estate, vehicle → excluded
 
 
 def _compact_account(a: dict) -> dict:
-    raw_type = a.get("type") or {}
+    raw_type  = a.get("type") or {}
     type_name = raw_type.get("name", "") if isinstance(raw_type, dict) else str(raw_type)
-    is_heloc = type_name == "loan"
-    bal_raw = a.get("currentBalance") or a.get("displayBalance") or 0
+    is_heloc  = type_name == "loan"
+    bal_raw   = a.get("currentBalance") or a.get("displayBalance") or 0
     try:
         bal = round(float(bal_raw), 2)
     except (TypeError, ValueError):
         bal = 0.0
     return {
-        "id": str(a.get("id", "")),
-        "name": a.get("displayName") or a.get("name") or "Unknown",
+        "id":      str(a.get("id", "")),
+        "name":    a.get("displayName") or a.get("name") or "Unknown",
         "balance": bal,
-        "type": "heloc" if is_heloc else type_name,
+        "type":    "heloc" if is_heloc else type_name,
     }
 
 
 @app.route("/api/monarch-accounts")
 def api_monarch_accounts():
     """Return bill-paying-eligible Monarch accounts, cached for 24 h.
-    Pass ?cache_only=1 to get a fast 404 instead of a slow fetch when no cache exists."""
+    Pass ?force=1 to bypass the cache and re-fetch from Monarch."""
     cache_max_age = 24 * 3600
     if not request.args.get("force"):
         if _ACCOUNTS_CACHE_FILE.exists():
@@ -1281,11 +812,12 @@ def api_monarch_accounts():
                 try:
                     return jsonify(json.loads(_ACCOUNTS_CACHE_FILE.read_text()))
                 except Exception:
-                    pass  # fall through to re-fetch if cache is corrupt
+                    pass   # fall through to re-fetch if cache is corrupt
 
     if request.args.get("cache_only"):
         return jsonify({"error": "no cache"}), 404
 
+    import monarch_client
     try:
         accounts = monarch_client.get_accounts()
     except Exception as e:
@@ -1302,9 +834,11 @@ def api_monarch_accounts():
     return jsonify(compact)
 
 
+# ── Entry point ────────────────────────────────────────────────────────────────
+
 if __name__ == "__main__":
     config = _load_config()
-    port = config.get("app", {}).get("port", 5002)
-    debug = config.get("app", {}).get("debug", False)
+    port   = config.get("app", {}).get("port", 5002)
+    debug  = config.get("app", {}).get("debug", False)
     print(f"Balance Forecast running at http://localhost:{port}")
     app.run(host="127.0.0.1", port=port, debug=debug)
