@@ -605,7 +605,7 @@
   </div>
   <div style="display:flex;gap:10px;align-items:center;">
     <button id="themeToggle" class="settings-link" onclick="toggleTheme()" title="Toggle dark/light mode" style="padding:6px 10px;font-size:1rem;">🌙</button>
-    <a href="/settings" class="settings-link" title="Configure app settings"><span style="font-size:1.5rem;line-height:1;display:flex;align-items:center;">⚙</span> Settings</a>
+    <a href="/settings" class="settings-link" title="Configure app settings"><svg width="20" height="20" viewBox="0 0 32 32" style="flex-shrink:0;display:block;" xmlns="http://www.w3.org/2000/svg"><path d="M15 15 C12 9 4 7 5 13 C6 17 12 17 15 17 Z" fill="#30d158"/><path d="M15 17 C9 21 3 27 7 29 C11 31 14 22 15 17 Z" fill="#1ea83c"/><path d="M17 15 C20 9 28 7 27 13 C26 17 20 17 17 17 Z" fill="#0a84ff"/><path d="M17 17 C23 21 29 27 25 29 C21 31 18 22 17 17 Z" fill="#0060cc"/><ellipse cx="16" cy="16" rx="2" ry="6" fill="#1c1c1e"/><circle cx="16" cy="16" r="3" fill="#ff9f0a"/><line x1="16" y1="13.5" x2="16" y2="18.5" stroke="#1c1c1e" stroke-width="1.1" stroke-linecap="round"/><line x1="14.3" y1="15" x2="17.7" y2="15" stroke="#1c1c1e" stroke-width="1" stroke-linecap="round"/><line x1="14.3" y1="17" x2="17.7" y2="17" stroke="#1c1c1e" stroke-width="1" stroke-linecap="round"/><circle cx="25" cy="25" r="8.5" fill="var(--surface,#f2f2f7)"/><text x="25" y="28.5" text-anchor="middle" font-size="11.5" fill="var(--text-secondary,#6e6e73)" style="font-family:system-ui,-apple-system,sans-serif;">⚙</text></svg> Settings</a>
     <div class="split-btn-wrap" id="refreshSplitWrap">
       <button class="refresh-btn split-main" id="refreshForecastBtn"
               onclick="refreshForecast()"
@@ -696,13 +696,15 @@
 <!-- AI Insights panel — loads async after main content -->
 <div class="ai-panel" id="aiPanel" style="display:none;">
   <div class="ai-header">
+    <button id="aiCollapseBtn" onclick="toggleAiPanel()" title="Collapse"
+            style="background:none;border:none;cursor:pointer;font-size:0.85rem;line-height:1;color:var(--text-tertiary);padding:0 4px 0 0;flex-shrink:0;transition:color 0.15s;">▾</button>
     <h2>AI Insights</h2>
     <span class="ai-status loading" id="aiStatus">Loading…</span>
     <button id="dashRunAiBtn" onclick="dashRunAiAnalysis()"
             style="margin-left:auto;background:none;border:1px solid #d2d2d7;border-radius:6px;padding:3px 10px;font-size:0.75rem;font-weight:500;color:#6e6e73;cursor:pointer;"
             title="Re-run AI analysis — may take a few minutes">▶ Refresh AI</button>
   </div>
-  <div id="dashAiRunLog" style="display:none;font-size:0.72rem;font-family:monospace;color:#aeaeb2;padding:4px 0 6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"></div>
+  <div id="dashAiRunLog" style="display:none;font-size:0.72rem;font-family:monospace;color:#aeaeb2;padding:5px 22px 6px;background:var(--surface-2);border-bottom:1px solid var(--border-light);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"></div>
   <div id="aiContent">
     <div class="ai-not-available">Fetching AI analysis…</div>
   </div>
@@ -860,6 +862,7 @@
 (function() {
   const days = {{ data.days | tojson }};
   const threshold = {{ data.buffer_threshold }};
+  const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
 
   const labels = days.map(d => d.date);
   const balances = days.map(d => d.balance);
@@ -947,7 +950,7 @@
             callback: v => '$' + v.toLocaleString(),
             font: { size: 11 }
           },
-          grid: { color: '#f0f0f5' }
+          grid: { color: isDark ? 'rgba(255,255,255,0.07)' : '#dddde5' }
         }
       }
     }
@@ -1258,6 +1261,34 @@
   // Fetch asynchronously so it doesn't block the chart
   window.loadAiInsights();
 
+  // Collapse / expand AI Insights panel
+  window.toggleAiPanel = function() {
+    var content = document.getElementById('aiContent');
+    var runLog  = document.getElementById('dashAiRunLog');
+    var btn     = document.getElementById('aiCollapseBtn');
+    var collapsed = localStorage.getItem('_aiPanelCollapsed') === '1';
+    if (collapsed) {
+      if (content) content.style.display = '';
+      if (btn) { btn.textContent = '\u25be'; btn.title = 'Collapse'; }
+      localStorage.removeItem('_aiPanelCollapsed');
+    } else {
+      if (content) content.style.display = 'none';
+      if (runLog && runLog.style.display !== 'none') runLog.style.display = 'none';
+      if (btn) { btn.textContent = '\u25b8'; btn.title = 'Expand'; }
+      localStorage.setItem('_aiPanelCollapsed', '1');
+    }
+  };
+
+  // Restore collapsed state on page load
+  (function() {
+    if (localStorage.getItem('_aiPanelCollapsed') === '1') {
+      var c = document.getElementById('aiContent');
+      var b = document.getElementById('aiCollapseBtn');
+      if (c) c.style.display = 'none';
+      if (b) { b.textContent = '\u25b8'; b.title = 'Expand'; }
+    }
+  })();
+
   // If an AI run is already in progress (started from Settings), auto-poll until done
   fetch('/api/ai-analysis-status')
     .then(function(r) { return r.json(); })
@@ -1288,7 +1319,7 @@
               window.loadAiInsights();
             }
           });
-      }, 5000);
+      }, 2000);
     })
     .catch(function() {});
 })();
@@ -1658,6 +1689,10 @@ function openPillPopover(pill) {
   var parts = month.split('-');
   var monthLabel = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, 1)
     .toLocaleString('default', {month:'long', year:'numeric'});
+  // Show the specific day when available (e.g. "April 3" instead of "April 2026")
+  var dayLabel = evtDate
+    ? new Date(evtDate + 'T12:00:00').toLocaleString('default', {month:'long', day:'numeric'})
+    : monthLabel;
 
   var amtNum = parseFloat(amount || 0);
   var amtLabel = amount !== ''
@@ -1689,10 +1724,10 @@ function openPillPopover(pill) {
   var body = '';
   if (source === 'monarch' || source === 'calendar') {
     body += '<button class="pill-pop-action" onclick="pillSkipMonth(' + jd + ',' + jm + ')">'
-      + '\u2715 Skip ' + _escHtml(monthLabel) + '</button>';
+      + '\u2715 Skip ' + _escHtml(dayLabel) + '</button>';
     if (source === 'monarch') {
       body += '<button class="pill-pop-action" onclick="pillEditOccurrence(' + jd + ',' + jdate + ',' + ja + ')">'
-        + '\u270e Edit ' + _escHtml(monthLabel) + ' amount</button>';
+        + '\u270e Edit ' + _escHtml(dayLabel) + ' amount</button>';
       body += '<button class="pill-pop-action" onclick="pillOverrideAmountExpand(' + jd + ',' + ja + ')">'
         + '\u270e Override Amount (all months)</button>';
       body += '<button class="pill-pop-action danger" onclick="pillSuppress(' + jd + ')">'
@@ -2000,6 +2035,10 @@ function dashRunAiAnalysis() {
   var aiPanel = document.getElementById('aiPanel');
   if (aiPanel) aiPanel.classList.add('running');
 
+  // Show "Starting…" in log div immediately so there's no blank gap before first poll
+  var runLog = document.getElementById('dashAiRunLog');
+  if (runLog) { runLog.textContent = 'Starting\u2026'; runLog.style.display = ''; }
+
   // Disable the split button's AI option while running
   var refreshForecastBtn = document.getElementById('refreshForecastBtn');
   if (refreshForecastBtn) refreshForecastBtn.disabled = true;
@@ -2058,7 +2097,7 @@ function dashRunAiAnalysis() {
               }, 1000);
             }
           });
-      }, 5000);
+      }, 2000);
     })
     .catch(function() {
       btn.textContent = 'Error';
