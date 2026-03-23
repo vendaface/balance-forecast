@@ -60,6 +60,15 @@ from storage import (
 
 app = Flask(__name__)
 
+# ── App version (read once from VERSION file) ───────────────────────────────
+_VERSION_FILE = Path(__file__).parent / "VERSION"
+_APP_VERSION  = _VERSION_FILE.read_text().strip() if _VERSION_FILE.exists() else "dev"
+
+@app.context_processor
+def _inject_globals():
+    """Make version available in every template as {{ version }}."""
+    return dict(version=_APP_VERSION)
+
 # AI analysis background-run state
 _ai_running: bool = False
 _ai_run_log: list = []
