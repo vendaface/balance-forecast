@@ -675,6 +675,7 @@
             style="margin-left:auto;background:none;border:1px solid #d2d2d7;border-radius:6px;padding:3px 10px;font-size:0.75rem;font-weight:500;color:#6e6e73;cursor:pointer;"
             title="Re-run AI analysis — may take a few minutes">▶ Refresh AI</button>
   </div>
+  <div id="dashAiRunLog" style="display:none;font-size:0.72rem;font-family:monospace;color:#aeaeb2;padding:4px 0 6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"></div>
   <div id="aiContent">
     <div class="ai-not-available">Fetching AI analysis…</div>
   </div>
@@ -1153,9 +1154,16 @@
         fetch('/api/ai-analysis-status')
           .then(function(r) { return r.json(); })
           .then(function(s2) {
+            var runLog = document.getElementById('dashAiRunLog');
+            if (s2.log && s2.log.length) {
+              if (runLog) { runLog.textContent = s2.log[s2.log.length - 1]; runLog.style.display = ''; }
+            } else if (s2.running && runLog) {
+              runLog.textContent = 'Starting\u2026'; runLog.style.display = '';
+            }
             if (!s2.running) {
               clearInterval(_dashAiPollInterval);
               _dashAiPollInterval = null;
+              if (runLog) runLog.style.display = 'none';
               if (aiPanel) aiPanel.classList.remove('running');
               if (btn) { btn.textContent = '\u25b6 Refresh AI'; btn.style.color = ''; btn.disabled = false; }
               window.loadAiInsights();
@@ -1279,6 +1287,7 @@ function submitCorrection() {
     if (data.ok) {
       toggleCorrectionForm();
       _afterCorrection();
+      showInfo('Correction saved.');
     }
   })
   .catch(function() { showError('Could not save correction. Check the server log.'); })
@@ -1893,8 +1902,16 @@ function dashRunAiAnalysis() {
         fetch('/api/ai-analysis-status')
           .then(function(r) { return r.json(); })
           .then(function(s) {
+            // Show last log line as a live progress indicator
+            var runLog = document.getElementById('dashAiRunLog');
+            if (s.log && s.log.length) {
+              if (runLog) { runLog.textContent = s.log[s.log.length - 1]; runLog.style.display = ''; }
+            } else if (s.running && runLog) {
+              runLog.textContent = 'Starting\u2026'; runLog.style.display = '';
+            }
             if (!s.running) {
               clearInterval(_dashAiPollInterval);
+              if (runLog) runLog.style.display = 'none';
               if (aiPanel) aiPanel.classList.remove('running');
               if (refreshForecastBtn) refreshForecastBtn.disabled = false;
               btn.textContent = '\u2713 Done \u2014 reloading\u2026';

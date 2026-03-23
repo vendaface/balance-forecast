@@ -680,6 +680,7 @@
     </div>
     <div class="field-control">
       <button class="run-btn" id="runAiBtn" onclick="runAiAnalysis()">▶ Run AI Analysis</button>
+      <div id="aiLastRunHint" style="display:none;font-size:0.75rem;color:#aeaeb2;margin-top:4px;"></div>
       <div id="aiRunStatus" class="info-box" style="margin-top:8px;display:none;"></div>
       <div id="aiRunLog" style="display:none;font-size:0.72rem;font-family:monospace;background:#f5f5f7;border:1px solid #e0e0e5;border-radius:6px;padding:8px 10px;margin-top:6px;max-height:180px;overflow-y:auto;color:#3a3a3c;white-space:pre-wrap;line-height:1.5;"></div>
     </div>
@@ -1061,6 +1062,61 @@ _updateAiSessionDisplay();
 // ── Run AI Analysis ───────────────────────────────────────────────────────────
 var _aiPollInterval = null;
 
+// Shared poll loop — call after showing the running UI to get live log + completion handling.
+function _startAiPolling(btn, statusEl, logEl) {
+  if (_aiPollInterval) { clearInterval(_aiPollInterval); _aiPollInterval = null; }
+  var _dotCount = 0;
+  _aiPollInterval = setInterval(function() {
+    fetch('/api/ai-analysis-status')
+      .then(function(r) { return r.json(); })
+      .then(function(s) {
+        // Switch button text from "Starting…" to "Running…" once the process is confirmed live
+        if (s.running) btn.textContent = '\u23f3 Running\u2026';
+        if (s.log && s.log.length) {
+          logEl.textContent = s.log.join('\n');
+          logEl.scrollTop = logEl.scrollHeight;
+        } else if (s.running) {
+          // Animated dots while log is still empty (first few seconds)
+          _dotCount = (_dotCount + 1) % 4;
+          logEl.textContent = 'Starting' + '.'.repeat(_dotCount + 1);
+        }
+        if (!s.running) {
+          clearInterval(_aiPollInterval);
+          _aiPollInterval = null;
+          var hint = document.getElementById('aiLastRunHint');
+          if (s.generated_at) {
+            var usage = s.token_usage;
+            // Accumulate into session counter
+            if (usage) {
+              var lastAt = sessionStorage.getItem('_aiLastAt');
+              if (lastAt !== s.generated_at) {
+                sessionStorage.setItem('_aiLastAt', s.generated_at);
+                var prev = JSON.parse(sessionStorage.getItem('_aiSession') || '{"in":0,"out":0,"cost":0,"runs":0}');
+                sessionStorage.setItem('_aiSession', JSON.stringify({
+                  in:   prev.in   + (usage.input_tokens  || 0),
+                  out:  prev.out  + (usage.output_tokens || 0),
+                  cost: prev.cost + (usage.cost_usd      || 0),
+                  runs: prev.runs + 1,
+                }));
+                _updateAiSessionDisplay();
+              }
+            }
+            var costStr = usage ? (' \u00b7 ' + (usage.input_tokens/1000).toFixed(1) + 'k in / ' +
+                          (usage.output_tokens/1000).toFixed(1) + 'k out / $' + usage.cost_usd.toFixed(4)) : '';
+            statusEl.innerHTML = '\u2705 Complete! Generated at ' +
+              s.generated_at.slice(0,19).replace('T',' ') + costStr +
+              '. <a href="/">Return to dashboard</a> to see updated insights.';
+            if (hint) { hint.textContent = 'Last run: ' + s.generated_at.slice(0,16).replace('T',' '); hint.style.display = ''; }
+          } else {
+            statusEl.textContent = '\u2705 Complete. Return to the dashboard to see updated insights.';
+          }
+          btn.textContent = '\u25b6 Run AI Analysis';
+          btn.disabled = false;
+        }
+      });
+  }, 2000);
+}
+
 function runAiAnalysis() {
   var btn = document.getElementById('runAiBtn');
   var statusEl = document.getElementById('aiRunStatus');
@@ -1082,52 +1138,7 @@ function runAiAnalysis() {
       statusEl.style.display = 'block';
       logEl.style.display = 'block';
       logEl.textContent = 'Starting\u2026';
-
-      var _dotCount = 0;
-      _aiPollInterval = setInterval(function() {
-        fetch('/api/ai-analysis-status')
-          .then(function(r) { return r.json(); })
-          .then(function(s) {
-            if (s.log && s.log.length) {
-              logEl.textContent = s.log.join('\n');
-              logEl.scrollTop = logEl.scrollHeight;
-            } else if (s.running) {
-              // Animated dots while log is still empty (first few seconds)
-              _dotCount = (_dotCount + 1) % 4;
-              logEl.textContent = 'Starting' + '.'.repeat(_dotCount + 1);
-            }
-            if (!s.running) {
-              clearInterval(_aiPollInterval);
-              if (s.generated_at) {
-                var usage = s.token_usage;
-                // Accumulate into session counter
-                if (usage) {
-                  var lastAt = sessionStorage.getItem('_aiLastAt');
-                  if (lastAt !== s.generated_at) {
-                    sessionStorage.setItem('_aiLastAt', s.generated_at);
-                    var prev = JSON.parse(sessionStorage.getItem('_aiSession') || '{"in":0,"out":0,"cost":0,"runs":0}');
-                    sessionStorage.setItem('_aiSession', JSON.stringify({
-                      in:   prev.in   + (usage.input_tokens  || 0),
-                      out:  prev.out  + (usage.output_tokens || 0),
-                      cost: prev.cost + (usage.cost_usd      || 0),
-                      runs: prev.runs + 1,
-                    }));
-                    _updateAiSessionDisplay();
-                  }
-                }
-                var costStr = usage ? (' \u00b7 ' + (usage.input_tokens/1000).toFixed(1) + 'k in / ' +
-                              (usage.output_tokens/1000).toFixed(1) + 'k out / $' + usage.cost_usd.toFixed(4)) : '';
-                statusEl.innerHTML = '\u2705 Complete! Generated at ' +
-                  s.generated_at.slice(0,19).replace('T',' ') + costStr +
-                  '. <a href="/">Return to dashboard</a> to see updated insights.';
-              } else {
-                statusEl.textContent = '\u2705 Complete. Return to the dashboard to see updated insights.';
-              }
-              btn.textContent = '\u25b6 Run AI Analysis';
-              btn.disabled = false;
-            }
-          });
-      }, 2000);
+      _startAiPolling(btn, statusEl, logEl);
     })
     .catch(function(err) {
       statusEl.textContent = 'Error starting analysis. Check that the server is running.';
@@ -1188,6 +1199,32 @@ function populateAccountSelect(accounts) {
 document.addEventListener('DOMContentLoaded', function() {
   updateAiProviderUI();
   updateCalendarHelp();
+
+  // Auto-resume running UI if AI analysis was in progress when the page loaded,
+  // or show the last-run timestamp if insights exist.
+  fetch('/api/ai-analysis-status')
+    .then(function(r) { return r.json(); })
+    .then(function(s) {
+      var hint    = document.getElementById('aiLastRunHint');
+      var btn     = document.getElementById('runAiBtn');
+      var statusEl = document.getElementById('aiRunStatus');
+      var logEl   = document.getElementById('aiRunLog');
+      if (s.running) {
+        btn.textContent = '\u23f3 Running\u2026';
+        btn.disabled = true;
+        statusEl.textContent = '\u23f3 Analysis running \u2014 sit tight, this can take a few minutes. Progress appears below as it comes in.';
+        statusEl.style.display = 'block';
+        if (s.log && s.log.length) { logEl.textContent = s.log.join('\n'); logEl.scrollTop = logEl.scrollHeight; }
+        else { logEl.textContent = 'Starting\u2026'; }
+        logEl.style.display = 'block';
+        _startAiPolling(btn, statusEl, logEl);
+      } else if (s.generated_at && hint) {
+        hint.textContent = 'Last run: ' + s.generated_at.slice(0,16).replace('T', '\u2002');
+        hint.style.display = '';
+      }
+    })
+    .catch(function() {});
+
   fetch('/api/monarch-accounts?cache_only=1')
     .then(function(r) { return r.ok ? r.json() : Promise.reject(); })
     .then(function(accounts) {
