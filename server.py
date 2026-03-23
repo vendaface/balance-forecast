@@ -765,7 +765,7 @@ def api_run_ai_analysis():
         global _ai_running, _ai_run_log
         try:
             proc = subprocess.Popen(
-                [sys.executable, str(Path(__file__).parent / "ai_daily.py")],
+                [sys.executable, "-u", str(Path(__file__).parent / "ai_daily.py")],
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
                 text=True,

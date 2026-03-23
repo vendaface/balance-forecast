@@ -1968,10 +1968,9 @@ function pillChangeDay(desc) {
   var inner = document.getElementById('pillPopoverInner');
   var row = document.createElement('div');
   row.className = 'pill-pop-amount-row';
-  row.innerHTML = '<span style="color:var(--text-secondary);font-size:0.84rem;flex-shrink:0;">Day of month:</span>'
-    + '<input id="pillDayInput" type="number" min="1" max="28" placeholder="e.g. 16" style="width:70px;" />'
-    + '<input id="pillDayNote" type="text" placeholder="Note (optional)" />'
-    + '<button onclick="pillChangeDaySave(' + _escHtml(JSON.stringify(desc)) + ')">Save</button>';
+  row.innerHTML = '<span style="color:var(--text-secondary);font-size:0.84rem;flex-shrink:0;">Day of month (1\u201328):</span>'
+    + '<input id="pillDayInput" type="number" min="1" max="28" placeholder="16" style="width:60px;flex-shrink:0;" />'
+    + '<button onclick="pillChangeDaySave(' + _escHtml(JSON.stringify(desc)) + ')" style="flex-shrink:0;">Save</button>';
   var firstBtn = inner.querySelector('.pill-pop-action');
   if (firstBtn) inner.insertBefore(row, firstBtn);
   else inner.appendChild(row);
@@ -1981,12 +1980,10 @@ function pillChangeDay(desc) {
 function pillChangeDaySave(desc) {
   var day = parseInt(document.getElementById('pillDayInput').value, 10);
   if (isNaN(day) || day < 1 || day > 28) { showError('Enter a day 1\u201328.'); return; }
-  var noteEl = document.getElementById('pillDayNote');
-  var note = noteEl ? noteEl.value : '';
   _closePillPopover();
   fetch('/api/payment-day-overrides', {
     method: 'POST', headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({name: desc, day: day, note: note})
+    body: JSON.stringify({name: desc, day: day, note: ''})
   })
   .then(function(r) { return r.json(); })
   .then(function(d) {
