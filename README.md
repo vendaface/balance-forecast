@@ -23,7 +23,7 @@ Key capabilities:
 
 ## Screenshots
 
-### Balance forecast
+### Balance forecast graph
 
 The main dashboard projects your checking account balance forward 45 days (configurable). Stat cards show current balance, the projected low for the period, how many days fall below your configured buffer, and the buffer threshold itself. The chart draws a clear visual boundary at your buffer line — dips below it appear instantly.
 
@@ -31,27 +31,54 @@ The main dashboard projects your checking account balance forward 45 days (confi
 
 ---
 
-### Clicking a transaction pill
+### Inspecting the balance forecast graph
 
-Each event on the chart is a clickable pill. Tapping one opens a popover with the amount, source, and quick actions — override the amount, suppress it from the forecast entirely, or (for scenario events) delete it outright.
+Hover over any date on the balance graph to see that day's transactions.
+![Graph node popup showing transactions for the given date](docs/screenshots/dashboard-tx-popup.png)
 
-![Transaction pill popover showing quick actions for a forecast event](docs/screenshots/dashboard-tx-popup.png)
+---
+
+### Transaction calendar
+
+A list of dates up to your forecast horizon with clickable transaction pills showing merchants & amounts.
+
+![Transactions appear on an agenda-like calendar](docs/screenshots/dashboard-tx-calendar.png)
+
+---
+
+### Transaction calendar
+
+A list of dates up to your forecast horizon with clickable transaction pills showing merchants & amounts.
+
+![Transactions appear on an agenda-like calendar](docs/screenshots/dashboard-tx-calendar.png)
 
 ---
 
 ### Editing a transaction amount inline
 
-The Variable Payments card lets you lock in a known upcoming amount for any credit card or irregular bill. Enter $0 to suppress it for a month.
-
-![Editing a variable payment amount inline in the Variable Payments card](docs/screenshots/dashboard-tx-edit.png)
+Click any transaction on the calendar to pop up an editing interface. Change single amounts, recurring amounts, suppress the series, or skip the transaction altogether. The forecast updates instantly when you save the changes.
+![Editing a transaction inline in the transaction calendar](docs/screenshots/dashboard-tx-edit.png)
 
 ---
 
-### AI risk flags, seasonal notes, and corrections
+### Transfer Advice & AI Insights (optional)
 
-The AI panel surfaces actionable risk flags — a projected balance dip, high-interest debt worth targeting, and anything else the model flags as worth attention — alongside a seasonal spending note drawn from your actual transaction history. Below it, the Corrections panel lets you hand-author facts, known quirks, and overrides that get injected into every AI analysis to sharpen its accuracy.
+Transfer recommendations are part of the forecast engine, recommending amounts and dates to transfer funds in to ensure a positive balance.
+The optional AI Insights panel displays actionable observations based on your historic transactions (going back a customizable number of months).
+It will point out where you can optimize spending, when savings is possible, and give advice. If it's confidently wrong like AI tends to be,
+the Corrections panel at the bottom of the card lets you hand-author facts, known quirks, and overrides that get injected into every AI analysis to fix its accuracy.
 
-![AI risk flags panel showing two warnings, seasonal notes section, and the Corrections panel with three entries](docs/screenshots/dashboard-insights.png)
+![AI risk flags panel showing two warnings, seasonal notes section, and the Corrections panel with three entries](docs/screenshots/dashboard-txrecs-ai-insights.png)
+
+---
+
+### Settings — Monarch Connection
+
+Connect to Monarch via a temporary Chrome window, no credentials are saved by the app.
+
+![Kick off a Monarch session to save the connection](docs/screenshots/settings-monarch-connection.png)
+
+![Browser window opens with Monarch login](docs/screenshots/settings-monarch-fetching.png)
 
 ---
 
@@ -61,23 +88,12 @@ Configure your AI provider, model, and API key here. The **Last generated** line
 
 ![AI Insights settings panel showing provider selection, model, API key configuration, and Run AI Analysis button](docs/screenshots/settings-ai.png)
 
----
-
-### Settings — App Server
-
-Port, debug mode, and the two server action buttons: **Restart Server** (preserves all data) and **Reset to Factory Defaults** (full wipe, cannot be undone).
-
-![App Server settings showing port configuration, debug mode toggle, Restart Server and Reset to Factory Defaults buttons](docs/screenshots/settings-server.png)
-
----
-
-### Dark mode — Settings
-
-![Settings page in dark mode showing the Restart Server and Reset to Factory Defaults buttons](docs/screenshots/settings-dark.png)
 
 ---
 
 ### Dark mode — Dashboard
+
+Switch between light and dark modes easily.
 
 ![Balance Forecast dashboard in dark mode, showing the same projected balance chart with a dark color scheme](docs/screenshots/dashboard-dark.png)
 
@@ -92,46 +108,6 @@ This tool automates a real Chromium browser session using your own Monarch crede
 **This may violate Monarch's Terms of Service.** Use it for personal use only, at your own discretion, and at your own risk. The author makes no guarantees about continued compatibility. If Monarch updates their web app, this tool may stop working without notice.
 
 **Support for this tool comes from the individual who created it, not from Monarch Money.** Do not contact Monarch Money's support team with questions about this tool.
-
----
-
-## Architecture & privacy
-
-**All your data stays on your computer. Nothing is uploaded to any cloud service operated by this tool.**
-
-Here is exactly where data flows and where it is stored:
-
-### Authentication & Monarch connection
-
-1. You enter your Monarch email and password into a chrome window just to capture the session data — they are never transmitted to any server other than Monarch's own login endpoint.
-2. When you click **Connect to Monarch**, a Chromium browser window opens on your machine. You log in directly to `app.monarchmoney.com` — your credentials go from your keyboard to Monarch's servers, nowhere else.
-3. After a successful login, Playwright saves your session cookies to `browser_state.json` in the app folder. Subsequent data fetches use this saved session (headless, no visible window) to avoid repeated logins.
-4. All future data fetches go directly from your computer to `api.monarch.com` — the same GraphQL endpoint your browser uses when you visit Monarch normally.
-
-### Data storage (all files are local, in the app folder)
-
-| File | What it contains | Leaves your device? |
-|---|---|---|
-| `.env` | AI API key | **Never** |
-| `browser_state.json` | Monarch session cookies | **Never** |
-| `config.yaml` | App preferences (account ID, forecast horizon, etc.) | **Never** |
-| `insights.json` | AI analysis output | Only if you configure an AI provider |
-| `payment_overrides.json` | Your variable payment amounts | **Never** |
-| `scenarios.json` | Scenario modeling events | **Never** |
-| `monarch_accounts_cache.json` | Account names and IDs from Monarch | **Never** |
-| `user_context.md` | Corrections you feed to the AI | Only if you configure an AI provider |
-
-The app runs a local web server at `http://localhost:5002` by default. This server is only accessible from your own computer — it does not listen on a network interface accessible to other devices.
-
-### AI provider data handling (optional feature)
-
-If you enable AI Insights, the app sends a summary of your recent transactions and recurring payments to the AI provider you choose (Anthropic, OpenAI, or Google). **Before enabling this feature, review the privacy policy of your chosen provider:**
-
-- [Anthropic Privacy Policy](https://www.anthropic.com/privacy)
-- [OpenAI Privacy Policy](https://openai.com/policies/privacy-policy)
-- [Google Privacy Policy](https://policies.google.com/privacy)
-
-Your AI API key is stored only in `.env` on your device. It is sent only to your chosen provider's API endpoint to authenticate requests — it is never transmitted to any server operated by this tool or its author.
 
 ---
 
@@ -284,6 +260,46 @@ Google AI Studio keys include a generous free tier. Usage beyond the free tier i
 **Browser doesn't open automatically (Linux)** — navigate to `http://localhost:5002` in your browser manually.
 
 **The app was working and suddenly stopped** — Monarch occasionally updates their web app, which can break the data-fetching layer. Check the [project page on GitHub](https://github.com/vendaface/balance-forecast) for updates.
+
+---
+
+## Architecture & privacy
+
+**All your data stays on your computer. Nothing is uploaded to any cloud service operated by this tool.**
+
+Here is exactly where data flows and where it is stored:
+
+### Authentication & Monarch connection
+
+1. You enter your Monarch email and password into a chrome window just to capture the session data — they are never transmitted to any server other than Monarch's own login endpoint.
+2. When you click **Connect to Monarch**, a Chromium browser window opens on your machine. You log in directly to `app.monarchmoney.com` — your credentials go from your keyboard to Monarch's servers, nowhere else.
+3. After a successful login, Playwright saves your session cookies to `browser_state.json` in the app folder. Subsequent data fetches use this saved session (headless, no visible window) to avoid repeated logins.
+4. All future data fetches go directly from your computer to `api.monarch.com` — the same GraphQL endpoint your browser uses when you visit Monarch normally.
+
+### Data storage (all files are local, in the app folder)
+
+| File | What it contains | Leaves your device? |
+|---|---|---|
+| `.env` | AI API key | **Never** |
+| `browser_state.json` | Monarch session cookies | **Never** |
+| `config.yaml` | App preferences (account ID, forecast horizon, etc.) | **Never** |
+| `insights.json` | AI analysis output | Only if you configure an AI provider |
+| `payment_overrides.json` | Your variable payment amounts | **Never** |
+| `scenarios.json` | Scenario modeling events | **Never** |
+| `monarch_accounts_cache.json` | Account names and IDs from Monarch | **Never** |
+| `user_context.md` | Corrections you feed to the AI | Only if you configure an AI provider |
+
+The app runs a local web server at `http://localhost:5002` by default. This server is only accessible from your own computer — it does not listen on a network interface accessible to other devices.
+
+### AI provider data handling (optional feature)
+
+If you enable AI Insights, the app sends a summary of your recent transactions and recurring payments to the AI provider you choose (Anthropic, OpenAI, or Google). **Before enabling this feature, review the privacy policy of your chosen provider:**
+
+- [Anthropic Privacy Policy](https://www.anthropic.com/privacy)
+- [OpenAI Privacy Policy](https://openai.com/policies/privacy-policy)
+- [Google Privacy Policy](https://policies.google.com/privacy)
+
+Your AI API key is stored only in `.env` on your device. It is sent only to your chosen provider's API endpoint to authenticate requests — it is never transmitted to any server operated by this tool or its author.
 
 ---
 
