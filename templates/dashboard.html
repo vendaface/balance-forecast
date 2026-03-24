@@ -150,6 +150,17 @@
       0%, 100% { box-shadow: 0 0 0 0 rgba(64,156,255,0); }
       50% { box-shadow: 0 0 0 6px rgba(64,156,255,0.55); }
     }
+    /* Drawer border pulses while an AI run is in progress (box-shadow on panel is clipped) */
+    .ai-drawer:has(#aiPanel.running) { animation: ai-drawer-pulse 2s ease-in-out infinite; }
+    @keyframes ai-drawer-pulse {
+      0%, 100% { border-left-color: var(--border); }
+      50%       { border-left-color: rgba(0, 113, 227, 0.65); }
+    }
+    [data-theme="dark"] .ai-drawer:has(#aiPanel.running) { animation: ai-drawer-pulse-dark 2s ease-in-out infinite; }
+    @keyframes ai-drawer-pulse-dark {
+      0%, 100% { border-left-color: var(--border); }
+      50%       { border-left-color: rgba(64, 156, 255, 0.75); }
+    }
     .settings-link {
       background: none;
       color: var(--text-secondary);
@@ -292,6 +303,10 @@
       color: #0a84ff;
       border-color: #0a84ff44;
     }
+    #aiToggleBtn.status-fresh { color: #34c759; border-color: #34c75955; }
+    #aiToggleBtn.status-stale { color: #ff9500; border-color: #ff950055; }
+    #aiToggleBtn.active.status-fresh { color: #34c759; border-color: #34c75988; background: var(--surface-2); }
+    #aiToggleBtn.active.status-stale { color: #ff9500; border-color: #ff950088; background: var(--surface-2); }
 
     /* Summary cards */
     .cards {
@@ -1245,6 +1260,14 @@
     } else {
       status.textContent = data.status || '?';
       status.className = 'ai-status loading';
+    }
+
+    // Mirror status onto the header toggle button
+    var toggleBtn = document.getElementById('aiToggleBtn');
+    if (toggleBtn) {
+      toggleBtn.classList.remove('status-fresh', 'status-stale');
+      if (data.status === 'fresh') toggleBtn.classList.add('status-fresh');
+      else if (data.status === 'stale') toggleBtn.classList.add('status-stale');
     }
 
     // Session token accumulation — track cumulative usage across AI runs this session
@@ -2241,6 +2264,12 @@ function addScenarioEvent() {
     loadScenarios();
     var hint = document.getElementById('scenarioRefreshHint');
     if (hint) { hint.style.display = 'block'; clearTimeout(hint._hideTimer); }
+    // Reset form fields to defaults for the next entry
+    document.getElementById('scnDate').value   = '';
+    document.getElementById('scnDesc').value   = '';
+    document.getElementById('scnAmount').value = '';
+    document.getElementById('scnSign').value   = '1';
+    document.getElementById('scnFreq').value   = 'one-time';
     btn.textContent = 'Added \u2713';
     btn.style.background = '#34c759';
     setTimeout(function() {
