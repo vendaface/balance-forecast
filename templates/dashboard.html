@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="csrf-token" content="{{ csrf_token }}">
   <title>Butterfly Effect</title>
   <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
   <script>(function(){var t=localStorage.getItem('theme')||'light';document.documentElement.setAttribute('data-theme',t);})();</script>
@@ -574,6 +575,20 @@
   box-shadow:0 4px 20px rgba(0,0,0,0.18);pointer-events:none;
   transition:opacity 0.3s ease;
 "></div>
+<script>
+// ── CSRF: attach X-CSRF-Token header to every API fetch automatically ────────
+(function() {
+  var _csrfToken = (document.querySelector('meta[name="csrf-token"]') || {}).content || '';
+  var _origFetch = window.fetch;
+  window.fetch = function(url, opts) {
+    opts = opts || {};
+    if (typeof url === 'string' && url.startsWith('/api')) {
+      opts.headers = Object.assign({}, opts.headers, { 'X-CSRF-Token': _csrfToken });
+    }
+    return _origFetch.call(this, url, opts);
+  };
+})();
+</script>
 <script>
 (function() {
   var _toastTimer = null;

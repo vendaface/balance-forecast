@@ -6,6 +6,7 @@ Run via: python server.py  (or ./run.sh)
 import json
 import os
 import re
+import secrets
 import subprocess
 import sys
 import threading
@@ -61,15 +62,69 @@ from storage import (
 )
 
 app = Flask(__name__)
+app.config['SECRET_KEY'] = secrets.token_hex(32)   # fresh each restart (no persistent sessions)
+
+# ── CSRF token — generated once per server process ─────────────────────────
+# Injected into every rendered page via context_processor; required as the
+# X-CSRF-Token header on every state-changing API request.  A cross-site page
+# cannot read this value (Same-Origin Policy) so it provides genuine protection
+# even for a localhost-only server.
+_CSRF_TOKEN = secrets.token_hex(32)
+
+
+@app.before_request
+def _enforce_csrf():
+    """Reject state-changing requests that lack a valid CSRF token."""
+    if request.method in ("POST", "PUT", "DELETE", "PATCH"):
+        if request.headers.get("X-CSRF-Token") != _CSRF_TOKEN:
+            return jsonify({"error": "CSRF validation failed"}), 403
+
+
+@app.after_request
+def _security_headers(response):
+    """Attach security headers to every response."""
+    # Prevent browsers from MIME-sniffing the content type
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    # Refuse to be embedded in iframes (clickjacking defence)
+    response.headers["X-Frame-Options"] = "DENY"
+    # No referrer info leaked to external sites
+    response.headers["Referrer-Policy"] = "no-referrer"
+    # Prevent caching of any API responses containing financial data
+    if request.path.startswith("/api/") or request.path == "/":
+        response.headers["Cache-Control"] = "no-store"
+    return response
+
+
+# ── Harden permissions on sensitive data files (run once at startup) ────────
+def _harden_file_permissions() -> None:
+    """Set owner-only (600) permissions on files that contain secrets or PII."""
+    sensitive = [
+        _ENV_PATH,
+        _CONFIG_PATH,
+        Path(__file__).parent / "browser_state.json",
+        Path(__file__).parent / "insights.json",
+        Path(__file__).parent / "user_context.md",
+    ]
+    for p in sensitive:
+        try:
+            if p.exists():
+                os.chmod(p, 0o600)
+        except OSError:
+            pass
+
+
+_harden_file_permissions()
+
 
 # ── App version (read once from VERSION file) ───────────────────────────────
 _VERSION_FILE = Path(__file__).parent / "VERSION"
 _APP_VERSION  = _VERSION_FILE.read_text().strip() if _VERSION_FILE.exists() else "dev"
 
+
 @app.context_processor
 def _inject_globals():
-    """Make version available in every template as {{ version }}."""
-    return dict(version=_APP_VERSION)
+    """Make version and CSRF token available in every template."""
+    return dict(version=_APP_VERSION, csrf_token=_CSRF_TOKEN)
 
 # AI analysis background-run state
 _ai_running: bool = False
@@ -703,15 +758,17 @@ def api_settings_calendar():
 def api_settings_app():
     body = request.get_json(force=True) or {}
     try:
-        port  = int(body.get("port", 5002))
-        debug = bool(body.get("debug", False))
+        port = int(body.get("port", 5002))
         if not (1024 <= port <= 65535):
             return jsonify({"error": "port must be 1024–65535"}), 400
     except (ValueError, TypeError) as e:
         return jsonify({"error": str(e)}), 400
 
     config = _load_config()
-    config = _deep_merge(config, {"app": {"port": port, "debug": debug}})
+    # debug mode is intentionally not settable via the API — it must be changed
+    # directly in config.yaml to prevent a cross-site request from enabling the
+    # Flask interactive debugger (which exposes a Python REPL).
+    config = _deep_merge(config, {"app": {"port": port}})
     _save_config(config)
     return jsonify({"ok": True, "restart_required": True})
 

@@ -50,7 +50,15 @@ def _atomic_write(path: Path, content: str) -> None:
     """
     tmp = path.with_name(path.name + ".tmp")
     tmp.write_text(content, encoding="utf-8")
+    try:
+        os.chmod(tmp, 0o600)   # owner-only before rename
+    except OSError:
+        pass
     os.replace(tmp, path)
+    try:
+        os.chmod(path, 0o600)  # also fix if destination already existed with looser perms
+    except OSError:
+        pass
 
 
 # ── Schema validation ─────────────────────────────────────────────────────────
