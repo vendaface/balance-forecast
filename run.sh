@@ -91,7 +91,4 @@ fi
 echo "Starting Balance Forecast at http://localhost:5002"
 python server.py &
 SERVER_PID=$!
-sleep 2
-# startup.html handles the browser redirect on macOS; xdg-open fallback for Linux
-xdg-open "http://localhost:5002" 2>/dev/null || true
 wait $SERVER_PID

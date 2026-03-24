@@ -98,15 +98,6 @@
       100% { transform: translateX(370%);  }
     }
 
-    /* ── Sims quip ── */
-    .quip {
-      font-size: 0.78rem;
-      color: #3a3a3c;
-      min-height: 1.3em;
-      font-style: italic;
-      transition: opacity 0.3s ease;
-    }
-
     /* ── Subtle background sparkles ── */
     .sparks {
       position: fixed;
@@ -171,7 +162,6 @@
     body.has-error .progress-fill { animation: none; background: #30363d; }
     body.has-error .butterfly-wrap svg { filter: none; opacity: 0.35; }
     body.has-error .stage { color: #636366; }
-    body.has-error .quip  { display: none; }
   </style>
 </head>
 <body>
@@ -203,8 +193,6 @@
     <div class="progress-track">
       <div class="progress-fill"></div>
     </div>
-
-    <div class="quip" id="quip">Reticulating splines&hellip;</div>
 
     <div class="error-card" id="errorCard">
       <div class="error-title" id="errorTitle"></div>
@@ -276,7 +264,7 @@
       [42, '\u231B Brewing the perfect storm\u2026'],
     ];
 
-    // ── Sims-style rotating quips ───────────────────────────────────────────
+    // ── Quips that alternate with stage messages ─────────────────────────────
     var quips = [
       'Reticulating splines\u2026',
       'Calibrating butterfly wings for maximum flappiness\u2026',
@@ -285,42 +273,37 @@
       'Untangling financial spaghetti\u2026',
       'Negotiating with pip\u2026 it has demands',
       'Establishing quantum entanglement with Monarch Money\u2026',
-      'Optimizing chaos theory algorithms\u2026',
-      'Counting your money (virtually, of course)\u2026',
-      'Installing the Oxford comma support package\u2026',
-      'Consulting the butterfly oracle\u2026',
       'Defragmenting your financial anxiety\u2026',
     ];
 
-    var stageEl = document.getElementById('stage');
-    var quipEl  = document.getElementById('quip');
-    var start   = Date.now();
-    var quipIdx = 0;
+    var stageEl  = document.getElementById('stage');
+    var start    = Date.now();
+    var quipIdx  = 0;
+    var showQuip = false;   // toggles each tick
 
-    // ── Advance stage label based on elapsed time ───────────────────────────
-    function updateStage() {
+    // ── Get the real stage label for current elapsed time ───────────────────
+    function getStageLabel() {
       var elapsed = (Date.now() - start) / 1000;
       var label = stages[0][1];
       for (var i = 0; i < stages.length; i++) {
         if (elapsed >= stages[i][0]) label = stages[i][1];
       }
-      if (stageEl.textContent !== label) {
-        stageEl.style.opacity = '0';
-        setTimeout(function () {
-          stageEl.textContent = label;
-          stageEl.style.opacity = '1';
-        }, 175);
-      }
+      return label;
     }
 
-    // ── Rotate quips with a fade ─────────────────────────────────────────────
-    function rotateQuip() {
-      quipEl.style.opacity = '0';
-      setTimeout(function () {
+    // ── Alternate between stage and quip every tick ──────────────────────────
+    function tick() {
+      var next;
+      if (showQuip) {
+        next = getStageLabel();
+        showQuip = false;
+      } else {
         quipIdx = (quipIdx + 1) % quips.length;
-        quipEl.textContent = quips[quipIdx];
-        quipEl.style.opacity = '1';
-      }, 300);
+        next = quips[quipIdx];
+        showQuip = true;
+      }
+      stageEl.style.opacity = '0';
+      setTimeout(function () { stageEl.textContent = next; stageEl.style.opacity = '1'; }, 175);
     }
 
     // ── Poll Flask via Image() — bypasses file:// CORS restrictions ──────────
@@ -359,12 +342,10 @@
     }
 
     // ── Boot ─────────────────────────────────────────────────────────────────
-    quipEl.textContent = quips[0];
-    updateStage();
+    stageEl.textContent = getStageLabel();
     makeSparks();
 
-    setInterval(updateStage, 1000);
-    setInterval(rotateQuip, 3200);
+    setInterval(tick, 3200);
 
     // Wait 1 second before first poll — server is definitely not up yet
     setTimeout(checkReady, 1000);
