@@ -284,7 +284,7 @@ Google AI Studio keys include a generous free tier. Usage beyond the free tier i
 
 **Browser doesn't open automatically (Linux)** — navigate to `http://localhost:5002` in your browser manually.
 
-**The app was working and suddenly stopped** — Monarch occasionally updates their web app, which can break the data-fetching layer. Check the [project page on GitHub](https://github.com/vendaface/balance-forecast) for updates.
+**The app was working and suddenly stopped** — Monarch occasionally updates their web app, which can break the data-fetching layer. Check the [project page on GitHub](https://github.com/vendaface/butterfly-effect) for updates.
 
 ---
 

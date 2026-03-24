@@ -70,7 +70,7 @@ fi
 
 # ── Virtual environment ───────────────────────────────────────────────────────
 # Stored outside iCloud Drive to prevent macOS from evicting venv files.
-VENV="$HOME/.cache/balance-forecast-venv"
+VENV="$HOME/.cache/butterfly-effect-venv"
 _venv_ok=true
 if [ ! -x "$VENV/bin/python" ]; then
   _venv_ok=false
