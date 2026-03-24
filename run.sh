@@ -18,7 +18,7 @@ _open_startup() {
 }
 
 # ── Open startup page immediately (before any slow checks) ────────────────────
-_open_startup "?os=$OS"
+_open_startup "#os=$OS"
 
 # ── Python detection ──────────────────────────────────────────────────────────
 PYTHON=""
@@ -31,7 +31,7 @@ for candidate in python3 python3.13 python3.12 python3.11; do
   fi
 done
 if [ -z "$PYTHON" ]; then
-  _open_startup "?e=nopython&os=$OS"
+  _open_startup "#e=nopython&os=$OS"
   echo "Error: Python 3.11+ required. See the browser window for install instructions."
   exit 1
 fi
@@ -71,7 +71,7 @@ while kill -0 "$PIP_PID" 2>/dev/null; do printf "."; sleep 1; done
 wait "$PIP_PID"; PIP_EXIT=$?
 if [ $PIP_EXIT -ne 0 ]; then
   echo " failed."
-  _open_startup "?e=pipfail&os=$OS"
+  _open_startup "#e=pipfail&os=$OS"
   echo "Error: dependency install failed. See the browser window for details."
   exit 1
 fi

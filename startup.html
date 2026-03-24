@@ -241,7 +241,7 @@
     };
 
     // ── Check URL params for error mode ─────────────────────────────────────
-    var params  = new URLSearchParams(location.search);
+    var params  = new URLSearchParams(location.hash.slice(1));
     var errCode = params.get('e');
     var os      = params.get('os') || 'darwin';
 
