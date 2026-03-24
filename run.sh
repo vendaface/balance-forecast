@@ -31,6 +31,10 @@ if [ ! -f .env ]; then
   touch .env
 fi
 
+# ── Startup page ──────────────────────────────────────────────────────────────
+# Open immediately — JS polls /_ping and auto-redirects when Flask is ready
+open "$SCRIPT_DIR/startup.html" 2>/dev/null || xdg-open "$SCRIPT_DIR/startup.html" 2>/dev/null || true
+
 # ── Virtual environment ───────────────────────────────────────────────────────
 # Stored outside iCloud Drive to prevent macOS from evicting venv files.
 VENV="$HOME/.cache/balance-forecast-venv"
@@ -76,6 +80,6 @@ echo "Starting Balance Forecast at http://localhost:5002"
 python server.py &
 SERVER_PID=$!
 sleep 2
-echo "Opening browser..."
-open "http://localhost:5002" 2>/dev/null || xdg-open "http://localhost:5002" 2>/dev/null || true
+# startup.html handles the browser redirect on macOS; xdg-open fallback for Linux
+xdg-open "http://localhost:5002" 2>/dev/null || true
 wait $SERVER_PID
