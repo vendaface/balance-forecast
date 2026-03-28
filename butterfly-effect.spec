@@ -28,17 +28,11 @@ a = Analysis(
         (str(SRC / 'VERSION'),          '.'),
     ],
     hiddenimports=[
-        # Flask stack
-        'flask',
-        'jinja2',
-        'jinja2.ext',
-        'werkzeug',
-        'werkzeug.routing',
-        'werkzeug.serving',
-        # Playwright — async branch used by monarch_client.py
-        'playwright',
+        # Playwright — async branch used by monarch_client.py; driver needed
+        # for browser install in frozen bundles
         'playwright.async_api',
         'playwright._impl._async_base',
+        'playwright._impl._driver',
         # AI providers
         'anthropic',
         'openai',

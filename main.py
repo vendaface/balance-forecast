@@ -29,20 +29,23 @@ PLAYWRIGHT_CACHE = Path.home() / '.cache' / 'butterfly-effect' / 'playwright'
 
 def _ensure_playwright_browser():
     """Install Chromium on first launch if it's not already present."""
-    # If any chromium directory exists under the cache, assume it's installed.
     if PLAYWRIGHT_CACHE.exists() and any(PLAYWRIGHT_CACHE.iterdir()):
         return
     print("First run: downloading Chromium browser (one-time, ~150 MB)...")
     PLAYWRIGHT_CACHE.mkdir(parents=True, exist_ok=True)
     env = {**os.environ, 'PLAYWRIGHT_BROWSERS_PATH': str(PLAYWRIGHT_CACHE)}
     try:
-        subprocess.run(
-            [sys.executable, '-m', 'playwright', 'install', 'chromium'],
-            env=env, check=True
-        )
+        if getattr(sys, 'frozen', False):
+            # In a PyInstaller bundle sys.executable is the app binary, not
+            # Python. Use Playwright's bundled Node.js driver directly instead.
+            from playwright._impl._driver import compute_driver_executable
+            driver = compute_driver_executable()
+            cmd = [str(driver), 'install', 'chromium']
+        else:
+            cmd = [sys.executable, '-m', 'playwright', 'install', 'chromium']
+        subprocess.run(cmd, env=env, check=True)
     except subprocess.CalledProcessError as exc:
         print(f"ERROR: Failed to install Chromium browser: {exc}", file=sys.stderr)
-        sys.exit(1)
 
 
 def _open_startup(port: int):
