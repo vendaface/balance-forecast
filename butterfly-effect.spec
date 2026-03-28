@@ -10,14 +10,22 @@
 
 import sys
 from pathlib import Path
+from PyInstaller.utils.hooks import collect_all, collect_data_files
 
 block_cipher = None
 SRC = Path(SPECPATH)   # directory containing this .spec file
 
+# collect_all() gathers every submodule, data file, and binary for a package.
+# Use it for packages that have complex submodule structures that PyInstaller
+# misses with static import analysis alone.
+flask_datas,      flask_bins,      flask_hidden      = collect_all('flask')
+werkzeug_datas,   werkzeug_bins,   werkzeug_hidden   = collect_all('werkzeug')
+playwright_datas, playwright_bins, playwright_hidden = collect_all('playwright')
+
 a = Analysis(
     [str(SRC / 'main.py')],
     pathex=[str(SRC)],
-    binaries=[],
+    binaries=[*flask_bins, *werkzeug_bins, *playwright_bins],
     datas=[
         # Web UI
         (str(SRC / 'templates'),        'templates'),
@@ -26,13 +34,14 @@ a = Analysis(
         # Config example & version
         (str(SRC / 'config.yaml.example'), '.'),
         (str(SRC / 'VERSION'),          '.'),
+        *flask_datas,
+        *werkzeug_datas,
+        *playwright_datas,
     ],
     hiddenimports=[
-        # Playwright — async branch used by monarch_client.py; driver needed
-        # for browser install in frozen bundles
-        'playwright.async_api',
-        'playwright._impl._async_base',
-        'playwright._impl._driver',
+        *flask_hidden,
+        *werkzeug_hidden,
+        *playwright_hidden,
         # AI providers
         'anthropic',
         'openai',
