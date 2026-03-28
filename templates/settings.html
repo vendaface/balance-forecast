@@ -474,7 +474,7 @@
 <!-- ── Monarch Connection ─────────────────────────────────────────────── -->
 <div class="settings-card{% if setup_mode %} card-required{% endif %}">
   <h2>Monarch Connection{% if setup_mode %}<span class="setup-step-badge"><span class="step-num">1</span>Required</span>{% endif %}</h2>
-  <p class="card-desc">Connect to Monarch to authorize access, then select your primary checking account for bill pay forecasting.</p>
+  {% if not setup_mode %}<p class="card-desc">Connect to Monarch to authorize access, then select your primary checking account for bill pay forecasting.</p>{% endif %}
 
   <div class="monarch-section-label">Step 1 — Connect to Monarch</div>
 

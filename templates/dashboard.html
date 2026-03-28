@@ -669,6 +669,7 @@
     .corr-type-pill.note { background: var(--surface-2); color: var(--text-secondary); }
     [data-theme="dark"] .corr-type-pill.correction { background: #0a2a4a; color: #5aadff; }
     [data-theme="dark"] .corr-type-pill.known-fact { background: #0a2a15; color: #4caf72; }
+    [data-theme="dark"] .stale-badge[style*="fff3cd"] { background: #2d2200 !important; color: #ffcc44 !important; }
 
     /* Scenario Modeling card */
     .scenario-card { background: var(--surface); border-radius: 14px; padding: 20px 24px; margin-bottom: 24px; box-shadow: 0 1px 4px rgba(0,0,0,0.07); border-left: 3px solid #5856d6; }
@@ -1003,7 +1004,7 @@
 <div class="events-wrap">
   <div style="padding:12px 18px 0;border-bottom:none;">
     <h2 style="font-size:0.9rem;font-weight:600;">Scheduled Payments &amp; Credits</h2>
-    <div class="meta" style="margin-top:2px;">Updated {{ data.refreshed_at }}</div>
+    <div class="meta" style="margin-top:2px;">Updated {{ data.refreshed_at }}{% if data.monarch_data_stale %} <span class="stale-badge" style="background:#fff3cd;color:#92620a;" title="Monarch data is {{ '%.0f'|format(data.monarch_data_age_hours) }}h old · click ↻ Refresh Forecast to update">⚠ stale ({{ '%.0f'|format(data.monarch_data_age_hours) }}h)</span>{% endif %}</div>
   </div>
   <div class="pill-legend">
     <span style="font-size:0.74rem;color:var(--text-tertiary);margin-right:2px;line-height:1.9;">Key:</span>
@@ -2087,30 +2088,28 @@ function pillSkipMonth(desc, month) {
 }
 
 function pillOverrideAmountExpand(desc, currentAmount) {
-  var sign = (parseFloat(currentAmount) >= 0) ? 1 : -1;
   var inner = document.getElementById('pillPopoverInner');
-  var curAmt = currentAmount !== '' ? Math.abs(parseFloat(currentAmount)) : '';
+  var curAmt = currentAmount !== '' ? parseFloat(currentAmount) : '';
   var row = document.createElement('div');
   row.className = 'pill-pop-amount-row';
   row.innerHTML = '<span style="color:var(--text-secondary);font-size:0.84rem;flex-shrink:0;">$</span>'
-    + '<input id="pillAmtInput" type="number" min="0" step="1"'
-    + ' placeholder="Amount (e.g. 750)" value="' + (curAmt || '') + '" />'
-    + '<button onclick="pillOverrideAmountSave(' + _escHtml(JSON.stringify(desc)) + ',' + sign + ')">Save</button>';
+    + '<input id="pillAmtInput" type="number" step="1"'
+    + ' placeholder="e.g. -750 (expense) or 2000 (income)" value="' + (curAmt || '') + '" />'
+    + '<button onclick="pillOverrideAmountSave(' + _escHtml(JSON.stringify(desc)) + ')">Save</button>';
   var firstBtn = inner.querySelector('.pill-pop-action');
   if (firstBtn) inner.insertBefore(row, firstBtn);
   else inner.appendChild(row);
   document.getElementById('pillAmtInput').focus();
 }
 
-function pillOverrideAmountSave(desc, sign) {
-  sign = (sign >= 0) ? 1 : -1;
+function pillOverrideAmountSave(desc) {
   var input = document.getElementById('pillAmtInput');
   var val = parseFloat(input.value);
-  if (isNaN(val) || val < 0) { showError('Enter a valid positive amount.'); return; }
+  if (isNaN(val)) { showError('Enter a valid amount (negative for expenses, positive for income).'); return; }
   _closePillPopover();
   fetch('/api/payment-overrides', {
     method: 'POST', headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({name: desc, amount: val * sign, note: ''})
+    body: JSON.stringify({name: desc, amount: val, note: ''})
   })
   .then(function(r) { return r.json(); })
   .then(function() { loadPayOverrides(); showStaleBanner('"' + desc + '" amount overridden'); })
@@ -2118,19 +2117,18 @@ function pillOverrideAmountSave(desc, sign) {
 }
 
 function pillEditOccurrence(desc, date, currentAmount) {
-  var sign = (parseFloat(currentAmount) >= 0) ? 1 : -1;
   var parts = date.split('-');
   var label = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]))
     .toLocaleString('default', {month:'long', day:'numeric', year:'numeric'});
   var inner = document.getElementById('pillPopoverInner');
-  var curAmt = currentAmount !== '' ? Math.abs(parseFloat(currentAmount)) : '';
+  var curAmt = currentAmount !== '' ? parseFloat(currentAmount) : '';
   var row = document.createElement('div');
   row.className = 'pill-pop-amount-row';
   row.innerHTML = '<span style="color:var(--text-secondary);font-size:0.84rem;flex-shrink:0;">$</span>'
-    + '<input id="pillAmtInput" type="number" min="0" step="1"'
+    + '<input id="pillAmtInput" type="number" step="1"'
     + ' placeholder="Amount for ' + _escHtml(label) + '" value="' + (curAmt || '') + '" />'
     + '<button onclick="pillEditOccurrenceSave('
-    + _escHtml(JSON.stringify(desc)) + ',' + _escHtml(JSON.stringify(date)) + ',' + sign
+    + _escHtml(JSON.stringify(desc)) + ',' + _escHtml(JSON.stringify(date))
     + ')">Save</button>';
   var firstBtn = inner.querySelector('.pill-pop-action');
   if (firstBtn) inner.insertBefore(row, firstBtn);
@@ -2138,15 +2136,14 @@ function pillEditOccurrence(desc, date, currentAmount) {
   document.getElementById('pillAmtInput').focus();
 }
 
-function pillEditOccurrenceSave(desc, date, sign) {
-  sign = (sign >= 0) ? 1 : -1;
+function pillEditOccurrenceSave(desc, date) {
   var input = document.getElementById('pillAmtInput');
   var val = parseFloat(input.value);
-  if (isNaN(val) || val < 0) { showError('Enter a valid positive amount.'); return; }
+  if (isNaN(val)) { showError('Enter a valid amount (negative for expenses, positive for income).'); return; }
   _closePillPopover();
   fetch('/api/payment-monthly-amounts', {
     method: 'POST', headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({name: desc, date: date, amount: val * sign, note: ''})
+    body: JSON.stringify({name: desc, date: date, amount: val, note: ''})
   })
   .then(function(r) { return r.json(); })
   .then(function() {
