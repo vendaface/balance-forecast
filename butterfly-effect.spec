@@ -42,6 +42,7 @@ a = Analysis(
         *flask_hidden,
         *werkzeug_hidden,
         *playwright_hidden,
+        'flask.json',   # explicit — flask.__init__ imports this at line 5
         # AI providers
         'anthropic',
         'openai',

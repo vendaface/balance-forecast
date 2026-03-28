@@ -11,7 +11,6 @@ This wrapper:
 """
 
 import os
-import shutil
 import subprocess
 import sys
 import tempfile
@@ -19,6 +18,11 @@ import threading
 import time
 import webbrowser
 from pathlib import Path
+
+# Pre-import Flask at module level so PyInstaller fully initializes it
+# (including flask.json) before the deferred `from server import app`
+# inside _run_flask can trigger a circular import.
+import flask  # noqa: F401
 
 # ── Resource path (works both bundled and from source) ─────────────────────
 BASE_DIR = Path(getattr(sys, '_MEIPASS', Path(__file__).parent))
@@ -37,9 +41,9 @@ def _ensure_playwright_browser():
     try:
         if getattr(sys, 'frozen', False):
             # In a PyInstaller bundle sys.executable is the app binary, not
-            # Python. Use Playwright's bundled Node.js driver directly instead.
-            from playwright._impl._driver import compute_driver_executable
-            driver = compute_driver_executable()
+            # Python. Find the Playwright Node.js driver by path inside the
+            # bundle — avoids importing playwright._impl at this early stage.
+            driver = Path(sys._MEIPASS) / 'playwright' / 'driver' / 'playwright'
             cmd = [str(driver), 'install', 'chromium']
         else:
             cmd = [sys.executable, '-m', 'playwright', 'install', 'chromium']
