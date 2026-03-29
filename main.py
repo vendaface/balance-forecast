@@ -194,12 +194,14 @@ def main():
     )
 
     def _on_shown():
-        def _wait_and_navigate():
-            if not _wait_for_flask(port):
-                print("ERROR: Flask server did not start in time.", file=sys.stderr)
-                return
-            _preload_and_navigate(port, window)
-        threading.Thread(target=_wait_and_navigate, daemon=True).start()
+        # pywebview already runs _on_shown in its own thread; no extra thread
+        # needed here.  Calling window.load_url() from a sub-thread fails
+        # silently on WKWebView, leaving the loading screen stuck forever.
+        if not _wait_for_flask(port):
+            print("ERROR: Flask server did not start in time.", file=sys.stderr)
+            # Navigate anyway — Flask may have started but /_ping timed out;
+            # the user will see an error page rather than a frozen butterfly.
+        _preload_and_navigate(port, window)
 
     webview.start(_on_shown)
     # webview.start() blocks until the window is closed
