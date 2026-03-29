@@ -195,9 +195,10 @@ def api_ai_insights():
         }
         api_key_set = _env_key_status(key_map.get(provider, "ANTHROPIC_API_KEY")) == "configured"
         return jsonify({
-            "status":   "not_generated",
-            "ai_ready": ai_enabled and api_key_set,
-            "message":  "Run 'python ai_daily.py' to generate AI insights.",
+            "status":      "not_generated",
+            "ai_enabled":  ai_enabled,
+            "ai_ready":    ai_enabled and api_key_set,
+            "message":     "Run 'python ai_daily.py' to generate AI insights.",
         }), 404
 
     try:
@@ -251,6 +252,17 @@ def api_ai_insights():
             s for s in suggestions
             if not _already_applied(s) and _sug_fingerprint(s) not in dismissed
         ]
+
+    # Inject current AI config state so the frontend can reflect enabled/ready status
+    ai_cfg      = config.get("ai", {})
+    ai_en       = ai_cfg.get("enabled", False)
+    provider    = ai_cfg.get("provider", "anthropic")
+    key_map     = {"anthropic": "ANTHROPIC_API_KEY",
+                   "openai":    "OPENAI_API_KEY",
+                   "google":    "GOOGLE_API_KEY"}
+    api_key_set = _env_key_status(key_map.get(provider, "ANTHROPIC_API_KEY")) == "configured"
+    insights["ai_enabled"] = ai_en
+    insights["ai_ready"]   = ai_en and api_key_set
 
     return jsonify(insights)
 

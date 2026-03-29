@@ -166,15 +166,22 @@
                  box-shadow: -6px 0 28px rgba(0,0,0,0.13), inset 6px 0 28px rgba(64, 156, 255, 0.22); }
     }
     /* AI toggle button pulses while an AI run is in progress */
+    /* Spinning sparkle icon when AI is running */
+    #aiToggleIcon.spinning {
+      display: inline-block;
+      animation: ai-spin 1.1s linear infinite;
+    }
+    @keyframes ai-spin { to { transform: rotate(360deg); } }
+    /* Pulse toggle button amber while running — unambiguously "busy", not "ready" */
     body:has(#aiPanel.running) #aiToggleBtn { animation: ai-btn-pulse 1.5s ease-in-out infinite; }
     @keyframes ai-btn-pulse {
       0%, 100% { color: var(--text-secondary); border-color: var(--border-input); box-shadow: none; }
-      50%       { color: #0071e3; border-color: rgba(0, 113, 227, 0.75); box-shadow: 0 0 10px rgba(0, 113, 227, 0.4); }
+      50%       { color: #ff9500; border-color: rgba(255,149,0,0.7); box-shadow: 0 0 10px rgba(255,149,0,0.35); }
     }
     [data-theme="dark"] body:has(#aiPanel.running) #aiToggleBtn { animation: ai-btn-pulse-dark 1.5s ease-in-out infinite; }
     @keyframes ai-btn-pulse-dark {
       0%, 100% { color: var(--text-secondary); border-color: var(--border-input); box-shadow: none; }
-      50%       { color: #409cff; border-color: rgba(64, 156, 255, 0.75); box-shadow: 0 0 12px rgba(64, 156, 255, 0.5); }
+      50%       { color: #ff9f0a; border-color: rgba(255,159,10,0.7); box-shadow: 0 0 12px rgba(255,159,10,0.4); }
     }
     .settings-link {
       background: none;
@@ -827,7 +834,7 @@
 </svg> Settings</a>
     {% if data %}
     <span style="width:1px;height:20px;background:var(--border);align-self:center;margin:0 4px;flex-shrink:0;"></span>
-    <button id="aiToggleBtn" class="settings-link" onclick="toggleAiDrawer()" title="Toggle AI Insights panel" style="padding:5px 10px;">✦ AI Insights</button>
+    <button id="aiToggleBtn" class="settings-link" onclick="toggleAiDrawer()" title="Toggle AI Insights panel" style="padding:5px 10px;"><span id="aiToggleIcon">✦</span> AI Insights</button>
     {% endif %}
     <div class="split-btn-wrap" id="refreshSplitWrap">
       <button class="refresh-btn split-main" id="refreshForecastBtn"
@@ -1301,6 +1308,19 @@
     var status = document.getElementById('aiStatus');
     var content = document.getElementById('aiContent');
 
+    // Disable Refresh AI button when AI is not runnable (disabled or no key)
+    var refreshBtn = document.getElementById('dashRunAiBtn');
+    if (refreshBtn && !refreshBtn.disabled) {
+      refreshBtn.disabled        = !data.ai_ready;
+      refreshBtn.style.opacity   = data.ai_ready ? '' : '0.4';
+      refreshBtn.style.cursor    = data.ai_ready ? '' : 'default';
+      refreshBtn.title = data.ai_ready
+        ? 'Re-run AI analysis — may take a few minutes'
+        : (data.ai_enabled === false
+            ? 'AI Insights is disabled — enable it in Settings'
+            : 'No API key configured — add one in Settings → AI Insights');
+    }
+
     // Status badge
     if (data.status === 'fresh') {
       status.textContent = 'Fresh';
@@ -1309,16 +1329,38 @@
       status.textContent = 'Stale';
       status.className = 'ai-status stale';
     } else if (data.status === 'not_generated') {
-      status.textContent = 'Not generated';
-      status.className = 'ai-status error';
-      var notGenMsg = data.ai_ready
-        ? 'Click <strong>▶ Refresh AI</strong> above to generate your first AI insights.'
-        : 'No AI insights yet. Go to <a href="/settings#ai">Settings → AI Insights</a> to configure an AI provider, then click <strong>▶ Refresh AI</strong> above.';
+      status.textContent = data.ai_enabled === false ? 'Disabled' : 'Not generated';
+      status.className   = data.ai_enabled === false ? 'ai-status loading' : 'ai-status error';
+      var notGenMsg;
+      if (data.ai_ready) {
+        notGenMsg = 'Click <strong>▶ Refresh AI</strong> above to generate your first AI insights.';
+      } else if (data.ai_enabled === false) {
+        notGenMsg = 'AI Insights is disabled. <a href="/settings#ai">Enable it in Settings</a> to generate insights.';
+      } else {
+        notGenMsg = 'No AI key configured. <a href="/settings#ai">Add an API key in Settings → AI Insights</a>, then click <strong>▶ Refresh AI</strong>.';
+      }
       content.innerHTML = '<div class="ai-not-available">' + notGenMsg + '</div>';
       return;
     } else {
       status.textContent = data.status || '?';
       status.className = 'ai-status loading';
+    }
+
+    // If insights exist but AI is now disabled, show a muted notice strip
+    var existingNotice = document.getElementById('aiDisabledNotice');
+    if (data.ai_enabled === false) {
+      if (!existingNotice) {
+        var notice = document.createElement('div');
+        notice.id = 'aiDisabledNotice';
+        notice.style.cssText = 'font-size:0.75rem;color:var(--text-secondary);background:var(--surface-2);' +
+          'border-bottom:1px solid var(--border-light);padding:5px 22px;';
+        notice.innerHTML = 'AI Insights is disabled — showing previously generated results. ' +
+          '<a href="/settings#ai" style="color:inherit;text-decoration:underline;">Re-enable in Settings</a>';
+        var aiHeader = document.querySelector('.ai-header');
+        if (aiHeader) aiHeader.after(notice);
+      }
+    } else if (existingNotice) {
+      existingNotice.remove();
     }
 
     // Mirror status onto the header toggle button
@@ -1594,6 +1636,7 @@
       var aiPanel = document.getElementById('aiPanel');
       if (btn) { btn.textContent = 'Running\u2026'; btn.disabled = true; btn.style.color = '#ff9500'; }
       if (aiPanel) aiPanel.classList.add('running');
+      _setAiToggleSpin(true);
       // Don't double-up if dashRunAiAnalysis already started a poller
       if (typeof _dashAiPollInterval !== 'undefined' && _dashAiPollInterval) return;
       _dashAiPollInterval = setInterval(function() {
@@ -1611,6 +1654,7 @@
               _dashAiPollInterval = null;
               if (runLog) runLog.style.display = 'none';
               if (aiPanel) aiPanel.classList.remove('running');
+              _setAiToggleSpin(false);
               if (btn) { btn.textContent = '\u25b6 Refresh AI'; btn.style.color = ''; btn.disabled = false; }
               window.loadAiInsights();
             }
@@ -2417,6 +2461,11 @@ loadScenarios();
 <script>
 if (typeof _dashAiPollInterval === 'undefined') var _dashAiPollInterval = null;
 
+function _setAiToggleSpin(on) {
+  var icon = document.getElementById('aiToggleIcon');
+  if (icon) icon.classList.toggle('spinning', on);
+}
+
 // ── Session token counter ─────────────────────────────────────────────────────
 function _updateAiSessionDisplay() {
   var session = JSON.parse(sessionStorage.getItem('_aiSession') || 'null');
@@ -2440,9 +2489,10 @@ function dashRunAiAnalysis() {
   btn.disabled = true;
   btn.style.color = '#ff9500';
 
-  // Pulse the AI panel border to signal live background activity
+  // Pulse the AI panel border and spin the toggle icon to signal live background activity
   var aiPanel = document.getElementById('aiPanel');
   if (aiPanel) aiPanel.classList.add('running');
+  _setAiToggleSpin(true);
 
   // Show stage label immediately so there's no blank gap before first poll
   var runLog = document.getElementById('dashAiRunLog');
@@ -2461,6 +2511,7 @@ function dashRunAiAnalysis() {
         btn.disabled = false;
         if (aiPanel) aiPanel.classList.remove('running');
         if (refreshForecastBtn) refreshForecastBtn.disabled = false;
+        _setAiToggleSpin(false);
         return;
       }
       // Poll until done — clear any existing interval first to avoid orphaned polls
@@ -2480,6 +2531,7 @@ function dashRunAiAnalysis() {
               clearInterval(_dashAiPollInterval);
               if (runLog) runLog.style.display = 'none';
               if (aiPanel) aiPanel.classList.remove('running');
+              _setAiToggleSpin(false);
               if (refreshForecastBtn) refreshForecastBtn.disabled = false;
               btn.textContent = '\u2713 Done \u2014 reloading\u2026';
               btn.style.color = '#34c759';
@@ -2513,6 +2565,7 @@ function dashRunAiAnalysis() {
       btn.style.color = '#ff3b30';
       btn.disabled = false;
       if (aiPanel) aiPanel.classList.remove('running');
+      _setAiToggleSpin(false);
       if (refreshForecastBtn) refreshForecastBtn.disabled = false;
     });
 }
