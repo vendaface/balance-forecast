@@ -337,7 +337,18 @@ def _get_forecast_data(config: dict) -> dict:
         payment_skips=payment_skips or None,
         payment_monthly_amounts=payment_monthly_amounts or None,
     )
-    result["refreshed_at"] = datetime.now().strftime("%A %b %-d, %Y at %-I:%M %p")
+    # Use the Monarch data fetch time as the "Updated" timestamp so the label
+    # reflects when data actually arrived from Monarch, not when the forecast
+    # was computed (which happens on every page load from cache).
+    fetched_at_str = _monarch_raw.get("fetched_at")
+    if fetched_at_str:
+        try:
+            _fetched_dt = datetime.fromisoformat(fetched_at_str)
+        except Exception:
+            _fetched_dt = datetime.now()
+    else:
+        _fetched_dt = datetime.now()
+    result["refreshed_at"] = _fetched_dt.strftime("%A %b %-d, %Y at %-I:%M %p")
     result["horizon_days"] = horizon
     result["has_ai_predictions"] = bool(predicted_events)
 
@@ -345,7 +356,7 @@ def _get_forecast_data(config: dict) -> dict:
     # Compare fetched_at against the user-configured threshold. Data is always
     # used regardless of age; the stale flag is purely for UI notification.
     stale_hours = config.get("monarch", {}).get("cache_stale_hours", 12)
-    fetched_at_str = _monarch_raw.get("fetched_at")
+    # fetched_at_str already extracted above
     monarch_data_stale = False
     monarch_data_age_hours: float | None = None
     if fetched_at_str:
