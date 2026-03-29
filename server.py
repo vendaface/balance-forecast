@@ -717,7 +717,6 @@ def api_settings_ai():
 
 
 @app.route("/api/settings/ai/clear-data", methods=["POST"])
-@_enforce_csrf
 def api_settings_ai_clear_data():
     """Delete all AI API keys and insights.json — full privacy opt-out."""
     for key in ("ANTHROPIC_API_KEY", "OPENAI_API_KEY", "GOOGLE_API_KEY"):
