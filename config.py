@@ -124,6 +124,18 @@ def _update_env_key(key: str, value: str) -> None:
     os.environ[key] = value   # pick up immediately without restart
 
 
+def _delete_env_key(key: str) -> None:
+    """Remove a key from .env entirely and clear it from os.environ.
+
+    Used for privacy opt-out — leaves no empty key line behind.
+    """
+    if _ENV_PATH.exists():
+        lines = [l for l in _ENV_PATH.read_text().splitlines()
+                 if not l.startswith(f"{key}=")]
+        _atomic_write(_ENV_PATH, "\n".join(lines) + ("\n" if lines else ""))
+    os.environ.pop(key, None)
+
+
 def _read_env_value(key: str) -> str:
     """Return the actual value of an env key (from os.environ or .env). Empty string if not set."""
     val = os.getenv(key, "").strip()

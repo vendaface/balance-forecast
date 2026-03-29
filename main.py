@@ -67,17 +67,7 @@ def _ensure_playwright_browser():
 
 
 def _run_flask(port: int):
-    """Start Flask in this thread (blocking)."""
-    import socket
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        if s.connect_ex(('127.0.0.1', port)) == 0:
-            print(
-                f'\nERROR: Port {port} is already in use.\n'
-                f'The app may already be running at http://localhost:{port}\n'
-                f'If not, run:  lsof -ti :{port} | xargs kill -9\n',
-                file=sys.stderr,
-            )
-            sys.exit(1)
+    """Start Flask in this thread (blocking). Port check is done in main()."""
     from server import app
     from config import _load_config
     config = _load_config()
@@ -168,24 +158,32 @@ def main():
     config = _load_config()
     port = config.get('app', {}).get('port', 5002)
 
+    # Check port before starting anything so we can exit cleanly if it's taken.
+    # Done here (not in _run_flask) so the window never opens on a port conflict.
+    import socket as _socket
+    with _socket.socket(_socket.AF_INET, _socket.SOCK_STREAM) as _s:
+        if _s.connect_ex(('127.0.0.1', port)) == 0:
+            print(
+                f'\nERROR: Port {port} is already in use.\n'
+                f'The app may already be running at http://localhost:{port}\n'
+                f'If not, run:  lsof -ti :{port} | xargs kill -9\n',
+                file=sys.stderr,
+            )
+            sys.exit(1)
+
     # Download Chromium in the background — needed for Monarch data fetching,
     # not the UI. Will be ready long before the user clicks "Connect to Monarch".
-    browser_thread = threading.Thread(target=_ensure_playwright_browser, daemon=True)
-    browser_thread.start()
+    threading.Thread(target=_ensure_playwright_browser, daemon=True).start()
 
     # Flask runs in a background thread so pywebview can own the main thread
     # (required on macOS).
-    flask_thread = threading.Thread(target=lambda: _run_flask(port), daemon=True)
-    flask_thread.start()
+    threading.Thread(target=lambda: _run_flask(port), daemon=True).start()
 
-    # Wait for Flask to be ready before opening the window
-    if not _wait_for_flask(port):
-        print("ERROR: Flask server did not start in time.", file=sys.stderr)
-        sys.exit(1)
-
-    # Open the app in a native macOS window (WKWebView via pywebview).
-    # Load the inline loading screen immediately (no white flash), then
-    # pre-fetch GET / in the background and navigate once it's cached.
+    # Open the window IMMEDIATELY — no waiting for Flask.
+    # This means the dock icon starts bouncing as soon as Python finishes
+    # initializing, with no 1–2 s delay while Flask spins up.
+    # The inline loading screen is shown in the window from the first frame;
+    # _wait_for_flask + the forecast pre-fetch run in a background thread.
     import webview
     window = webview.create_window(
         'Butterfly Effect',
@@ -196,12 +194,12 @@ def main():
     )
 
     def _on_shown():
-        preload_thread = threading.Thread(
-            target=_preload_and_navigate,
-            args=(port, window),
-            daemon=True,
-        )
-        preload_thread.start()
+        def _wait_and_navigate():
+            if not _wait_for_flask(port):
+                print("ERROR: Flask server did not start in time.", file=sys.stderr)
+                return
+            _preload_and_navigate(port, window)
+        threading.Thread(target=_wait_and_navigate, daemon=True).start()
 
     webview.start(_on_shown)
     # webview.start() blocks until the window is closed

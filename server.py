@@ -24,6 +24,7 @@ from config import (
     _ENV_PATH,
     _SENSITIVE_ENV_KEYS,
     _deep_merge,
+    _delete_env_key,
     _env_key_status,
     _is_first_run,
     _load_config,
@@ -712,6 +713,18 @@ def api_settings_ai():
     if google_key: _update_env_key("GOOGLE_API_KEY",    google_key)
 
     _clear_forecast_cache()   # AI settings don't need Monarch re-fetch
+    return jsonify({"ok": True})
+
+
+@app.route("/api/settings/ai/clear-data", methods=["POST"])
+@_enforce_csrf
+def api_settings_ai_clear_data():
+    """Delete all AI API keys and insights.json — full privacy opt-out."""
+    for key in ("ANTHROPIC_API_KEY", "OPENAI_API_KEY", "GOOGLE_API_KEY"):
+        _delete_env_key(key)
+    if _INSIGHTS_FILE.exists():
+        _INSIGHTS_FILE.unlink()
+    _clear_forecast_cache()
     return jsonify({"ok": True})
 
 
