@@ -118,9 +118,15 @@ fi
 echo " done."
 
 # ── Playwright browser ────────────────────────────────────────────────────────
-if ! python -c "from playwright.sync_api import sync_playwright; sync_playwright().__enter__().chromium.executable_path" &>/dev/null 2>&1; then
-  printf "Installing browser (first time only, may take a minute)"
-  playwright install chromium &>/dev/null &
+# Store Chromium in a dedicated cache dir (same path used by the bundled app)
+# so it survives venv rebuilds and isn't mixed with other Playwright projects.
+PLAYWRIGHT_CACHE="$HOME/.cache/butterfly-effect/playwright"
+export PLAYWRIGHT_BROWSERS_PATH="$PLAYWRIGHT_CACHE"
+
+if [ ! -d "$PLAYWRIGHT_CACHE" ] || [ -z "$(ls -A "$PLAYWRIGHT_CACHE" 2>/dev/null)" ]; then
+  printf "Installing browser (first time only, ~150 MB)"
+  mkdir -p "$PLAYWRIGHT_CACHE"
+  python -m playwright install chromium &>/dev/null &
   PW_PID=$!
   while kill -0 "$PW_PID" 2>/dev/null; do printf "."; sleep 2; done
   wait "$PW_PID"
