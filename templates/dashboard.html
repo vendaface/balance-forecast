@@ -140,12 +140,12 @@
     #refreshOverlay small { font-size: 0.8rem; color: var(--text-tertiary); }
 
     /* AI panel pulse while analysis is running */
-    .ai-panel.running { animation: ai-pulse 2s ease-in-out infinite; }
+    .ai-panel.running { animation: ai-pulse 1.5s ease-in-out infinite; }
     @keyframes ai-pulse {
       0%, 100% { box-shadow: 0 0 0 0 rgba(0,113,227,0); }
       50% { box-shadow: 0 0 0 4px rgba(0,113,227,0.18); }
     }
-    [data-theme="dark"] .ai-panel.running { animation: ai-pulse-dark 2s ease-in-out infinite; }
+    [data-theme="dark"] .ai-panel.running { animation: ai-pulse-dark 1.5s ease-in-out infinite; }
     @keyframes ai-pulse-dark {
       0%, 100% { box-shadow: 0 0 0 0 rgba(64,156,255,0); }
       50% { box-shadow: 0 0 0 6px rgba(64,156,255,0.55); }
@@ -783,6 +783,7 @@
     <button id="themeToggle" class="settings-link" onclick="toggleTheme()" title="Toggle dark/light mode" style="padding:5px 8px;font-size:0.95rem;">🌙</button>
     <a href="/settings" class="settings-link" title="Configure app settings" style="padding:5px 10px;"><svg width="16" height="16" viewBox="0 0 32 32" style="flex-shrink:0;display:block;" xmlns="http://www.w3.org/2000/svg"><path d="M15 15 C12 9 4 7 5 13 C6 17 12 17 15 17 Z" fill="#30d158"/><path d="M15 17 C9 21 3 27 7 29 C11 31 14 22 15 17 Z" fill="#1ea83c"/><path d="M17 15 C20 9 28 7 27 13 C26 17 20 17 17 17 Z" fill="#0a84ff"/><path d="M17 17 C23 21 29 27 25 29 C21 31 18 22 17 17 Z" fill="#0060cc"/><ellipse cx="16" cy="16" rx="2" ry="6" fill="#1c1c1e"/><circle cx="16" cy="16" r="3" fill="#ff9f0a"/><line x1="16" y1="13.5" x2="16" y2="18.5" stroke="#1c1c1e" stroke-width="1.1" stroke-linecap="round"/><line x1="14.3" y1="15" x2="17.7" y2="15" stroke="#1c1c1e" stroke-width="1" stroke-linecap="round"/><line x1="14.3" y1="17" x2="17.7" y2="17" stroke="#1c1c1e" stroke-width="1" stroke-linecap="round"/><circle cx="25" cy="25" r="8.5" fill="var(--surface,#f2f2f7)"/><text x="25" y="28.5" text-anchor="middle" font-size="11.5" fill="var(--text-secondary,#6e6e73)" style="font-family:system-ui,-apple-system,sans-serif;">⚙</text></svg> Settings</a>
     {% if data %}
+    <span style="width:1px;height:20px;background:var(--border);align-self:center;margin:0 4px;flex-shrink:0;"></span>
     <button id="aiToggleBtn" class="settings-link" onclick="toggleAiDrawer()" title="Toggle AI Insights panel" style="padding:5px 10px;">✦ AI Insights</button>
     {% endif %}
     <div class="split-btn-wrap" id="refreshSplitWrap">
@@ -825,7 +826,7 @@
       <h2>AI Insights</h2>
       <span class="ai-status loading" id="aiStatus">Loading…</span>
       <button id="dashRunAiBtn" onclick="dashRunAiAnalysis()"
-              style="margin-left:auto;background:none;border:1px solid #d2d2d7;border-radius:6px;padding:3px 10px;font-size:0.75rem;font-weight:500;color:#6e6e73;cursor:pointer;"
+              style="margin-left:auto;background:none;border:1px solid var(--border-input);border-radius:6px;padding:3px 10px;font-size:0.75rem;font-weight:500;color:var(--text-secondary);cursor:pointer;"
               title="Re-run AI analysis — may take a few minutes">▶ Refresh AI</button>
     </div>
     <div id="dashAiRunLog" style="display:none;font-size:0.72rem;font-family:monospace;color:#aeaeb2;padding:5px 22px 6px;background:var(--surface-2);border-bottom:1px solid var(--border-light);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"></div>
