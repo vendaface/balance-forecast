@@ -121,11 +121,10 @@ Configure your AI provider, model, and API key here. The **Last generated** line
 
 ## What you'll need before starting
 
-- A **Mac** (macOS) or **Linux** computer — Windows not supported in this version
+- A **Mac** (macOS 13+) or **Linux** computer — Windows not supported in this version
 - A **[Monarch Money](https://www.monarchmoney.com/)** account
-- **Python 3.11 or later** installed on your computer
-  - Mac: download from [python.org](https://www.python.org/downloads/) or install via [Homebrew](https://brew.sh): `brew install python@3.12`
-  - Linux: `sudo apt install python3` (Debian/Ubuntu) or `sudo dnf install python3` (Fedora)
+- **Python 3.11 or later** — **Linux only** (Mac users get Python bundled inside the app)
+  - Linux: `sudo apt install python3 python3-venv` (Debian/Ubuntu) or `sudo dnf install python3` (Fedora)
 
 **Optional — for AI insights:**
 An API key from one of these providers (pick one). See [Setting up AI Insights](#setting-up-ai-insights) below for step-by-step instructions.
@@ -139,23 +138,22 @@ An API key from one of these providers (pick one). See [Setting up AI Insights](
 
 ### Step 1 — Download the app
 
-Click the **Code** button on this page and choose **Download ZIP**. Unzip it somewhere you'll remember on your local account, like your Documents folder. (If you're already fluent in git just fork the repo and have at it!)
+**On Mac:** Go to the [Releases page](../../releases/latest) and download **`Butterfly.Effect-mac.dmg`**. Open the `.dmg`, drag the app to your Applications folder, and double-click to launch.
+
+> The first time you open it, macOS may warn you it's from an unidentified developer. Right-click the app → **Open** → **Open** to proceed. You only need to do this once.
+
+**On Linux:** Go to the [Releases page](../../releases/latest) and download **`butterfly-effect-linux-x86_64.AppImage`**. Make it executable and run it:
+```bash
+chmod +x butterfly-effect-*-linux-x86_64.AppImage
+./butterfly-effect-*-linux-x86_64.AppImage
+```
+Or clone the repo and run `./run.sh` directly (requires Python 3.11+).
 
 ### Step 2 — Launch the App
 
-**On Mac:**
-Double-click **`Start Balance Forecast.command`** in the folder. A startup page opens in your browser while the app initializes. On first run it will take a couple of minutes to set up — the startup page will warn you if no Python installation is detected and direct you as to how to download it.
+**Mac:** Python is bundled inside the app — no installation needed. Just double-click **Butterfly Effect** in your Applications folder. A startup page opens in your browser and redirects to the app once it's ready.
 
-> The first time you open it, macOS may warn you it's from an unidentified developer. Right-click the file → **Open** → **Open** to proceed. You only need to do this once.
-
-**On Linux:**
-Right-click **`run.sh`** in your file manager → **Run as Program** (the exact wording depends on your desktop). Or open a Terminal, navigate to the folder, and enter `./run.sh`.
-
-For both environments, the launcher automatically:
-- Opens a startup page in your browser,
-- Detects Python and shows a friendly error page if it's missing or too old
-- Sets up a Python virtual environment and installs all required packages
-- Redirects to the app's first-run setup once it's ready
+**Linux:** On first run, `run.sh` automatically sets up a Python virtual environment and installs all required packages. This takes a couple of minutes. The startup page will warn you if Python is missing or too old.
 
 ### Step 3 — Connect to Monarch
 
@@ -258,7 +256,7 @@ Google AI Studio keys include a generous free tier. Usage beyond the free tier i
 - **Billing Day Overrides** — correct the day-of-month for any recurring payment whose billing date Monarch has learned incorrectly
 - **Scenario Modeling** — temporarily model one-time transfers or expenses to see how they affect your balance forecast
 - **Corrections & Context** — feed the AI specific facts about your finances to improve its accuracy
-- **Startup page** — animated loading screen with helpful error messages if Python is missing or dependencies fail to install
+- **Startup page** — animated loading screen with helpful error messages if Python is missing or too old (Linux only — Mac bundles Python)
 - **Dark mode** — toggle in Settings or with the moon icon in the header
 
 ---
@@ -267,7 +265,7 @@ Google AI Studio keys include a generous free tier. Usage beyond the free tier i
 
 **"Setup needed" error on the dashboard** — click **→ Open Settings** in the error box and complete the Monarch Connection section (connect to Monarch and select your primary account).
 
-**Startup page shows a Python error** — follow the on-screen instructions to install Python 3.11 or later. On Mac, the page includes a Homebrew one-liner you can copy directly into Terminal.
+**Startup page shows a Python error (Linux)** — follow the on-screen instructions to install Python 3.11 or later: `sudo apt install python3 python3-venv` (Debian/Ubuntu) or `sudo dnf install python3` (Fedora). Mac users don't see this — Python is bundled inside the app.
 
 **Forecast is slow** — this is normal on first run. The app opens a browser, logs into Monarch, and fetches months of transaction history. Subsequent loads use a cached session and are much faster.
 
