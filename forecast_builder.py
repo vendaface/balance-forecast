@@ -356,7 +356,6 @@ def _get_forecast_data(config: dict) -> dict:
     # Compare fetched_at against the user-configured threshold. Data is always
     # used regardless of age; the stale flag is purely for UI notification.
     stale_hours = config.get("monarch", {}).get("cache_stale_hours", 12)
-    # fetched_at_str already extracted above
     monarch_data_stale = False
     monarch_data_age_hours: float | None = None
     if fetched_at_str:

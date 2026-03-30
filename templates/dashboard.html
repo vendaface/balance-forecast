@@ -569,6 +569,13 @@
       gap: 10px;
     }
     .ai-header h2 { font-size: 0.95rem; font-weight: 600; }
+    .ai-disabled-notice {
+      font-size: 0.75rem;
+      color: var(--text-secondary);
+      background: var(--surface-2);
+      border-bottom: 1px solid var(--border-light);
+      padding: 5px 22px;
+    }
     .ai-status {
       font-size: 0.7rem;
       font-weight: 600;
@@ -887,12 +894,10 @@
 {% if data %}
 
 <!-- Persistent right-edge AI tab — always visible when drawer is closed -->
-{% if data %}
 <button id="aiEdgeTab" onclick="toggleAiDrawer()" title="AI Insights" aria-label="Toggle AI Insights panel">
   <span id="aiToggleIcon">✦</span>
   <span class="ai-edge-label">AI</span>
 </button>
-{% endif %}
 
 <!-- AI Insights drawer — slides in from the right, overlays the schedule -->
 <div class="ai-drawer" id="aiDrawer">
@@ -1379,8 +1384,7 @@
       if (!existingNotice) {
         var notice = document.createElement('div');
         notice.id = 'aiDisabledNotice';
-        notice.style.cssText = 'font-size:0.75rem;color:var(--text-secondary);background:var(--surface-2);' +
-          'border-bottom:1px solid var(--border-light);padding:5px 22px;';
+        notice.className = 'ai-disabled-notice';
         notice.innerHTML = 'AI Insights is disabled — showing previously generated results. ' +
           '<a href="/settings#ai" style="color:inherit;text-decoration:underline;">Re-enable in Settings</a>';
         var aiHeader = document.querySelector('.ai-header');
