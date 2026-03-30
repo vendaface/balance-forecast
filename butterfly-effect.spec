@@ -35,6 +35,8 @@ a = Analysis(
         # Config example & version
         (str(SRC / 'config.yaml.example'), '.'),
         (str(SRC / 'VERSION'),          '.'),
+        # Demo data for screenshots (demo_mode: true in config.yaml)
+        (str(SRC / 'demo'),             'demo'),
         *playwright_datas,
         *webview_datas,
     ],

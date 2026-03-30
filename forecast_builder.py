@@ -13,11 +13,15 @@ Owns:
 
 import calendar
 import json
+import sys
 import time
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
 import calendar_client
+
+# Bundle-aware base directory (works both frozen and in dev)
+_BASE_DIR = Path(getattr(sys, '_MEIPASS', Path(__file__).parent))
 import forecast as forecast_engine
 import monarch_client
 
@@ -176,7 +180,7 @@ def _get_forecast_data(config: dict) -> dict:
     # Demo mode: serve pre-built forecast from disk so screenshots work without Monarch.
     # Enable by setting  demo_mode: true  in config.yaml.
     if config.get("demo_mode"):
-        _demo = Path(__file__).parent / "demo" / "forecast_data.json"
+        _demo = _BASE_DIR / "demo" / "forecast_data.json"
         if _demo.exists():
             data = json.loads(_demo.read_text())
             _cache["data"] = data
