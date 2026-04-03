@@ -1076,6 +1076,24 @@ def api_monarch_accounts():
     if request.args.get("cache_only"):
         return jsonify({"error": "no cache"}), 404
 
+    # Ensure Chromium is present before attempting a Playwright launch.
+    # The background install in main.py may have failed silently; if so,
+    # attempt a blocking install here so the user sees a clear status message
+    # rather than a raw Playwright "Executable doesn't exist" traceback.
+    import main as _main_module
+    _pw_cache = _main_module.PLAYWRIGHT_CACHE
+    _chromium_present = _pw_cache.exists() and any(_pw_cache.iterdir())
+    if not _chromium_present:
+        _env = {**os.environ, 'PLAYWRIGHT_BROWSERS_PATH': str(_pw_cache)}
+        _ok = _main_module._install_chromium(_env)
+        if not _ok:
+            return jsonify({
+                "error": (
+                    "browser_missing: Chromium could not be downloaded automatically. "
+                    "Please check your internet connection and try again."
+                )
+            }), 500
+
     import monarch_client
     try:
         accounts = monarch_client.get_accounts()

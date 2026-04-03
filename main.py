@@ -42,28 +42,47 @@ def _bootstrap_data_dir():
         env.touch(mode=0o600)
 
 
+# Set to True once Chromium is confirmed present; False if install failed.
+# server.py reads this to decide whether to attempt a synchronous install.
+_browser_ready: bool = False
+
+
+def _install_chromium(env: dict) -> bool:
+    """Run playwright install chromium. Returns True on success."""
+    PLAYWRIGHT_CACHE.mkdir(parents=True, exist_ok=True)
+    if getattr(sys, 'frozen', False):
+        # In a PyInstaller bundle sys.executable is the app binary, not
+        # Python. The playwright package bundles Node.js + a CLI script:
+        #   playwright/driver/node            ← Node.js binary
+        #   playwright/driver/package/cli.js  ← Playwright CLI
+        driver_dir = Path(sys._MEIPASS) / 'playwright' / 'driver'
+        node = driver_dir / 'node'
+        cli  = driver_dir / 'package' / 'cli.js'
+        if node.exists():
+            try:
+                node.chmod(node.stat().st_mode | 0o111)  # ensure executable bit
+            except Exception:
+                pass
+        cmd = [str(node), str(cli), 'install', 'chromium']
+    else:
+        cmd = [sys.executable, '-m', 'playwright', 'install', 'chromium']
+    try:
+        subprocess.run(cmd, env=env, check=True)
+        return True
+    except Exception as exc:
+        print(f"ERROR: Failed to install Chromium browser: {exc}", file=sys.stderr)
+        return False
+
+
 def _ensure_playwright_browser():
     """Install Chromium on first launch if it's not already present."""
+    global _browser_ready
     if PLAYWRIGHT_CACHE.exists() and any(PLAYWRIGHT_CACHE.iterdir()):
+        _browser_ready = True
         return
     print("First run: downloading Chromium browser (one-time, ~150 MB)...")
-    PLAYWRIGHT_CACHE.mkdir(parents=True, exist_ok=True)
     env = {**os.environ, 'PLAYWRIGHT_BROWSERS_PATH': str(PLAYWRIGHT_CACHE)}
-    try:
-        if getattr(sys, 'frozen', False):
-            # In a PyInstaller bundle sys.executable is the app binary, not
-            # Python. The playwright package bundles Node.js + a CLI script:
-            #   playwright/driver/node            ← Node.js binary
-            #   playwright/driver/package/cli.js  ← Playwright CLI
-            driver_dir = Path(sys._MEIPASS) / 'playwright' / 'driver'
-            node = driver_dir / 'node'
-            cli  = driver_dir / 'package' / 'cli.js'
-            cmd = [str(node), str(cli), 'install', 'chromium']
-        else:
-            cmd = [sys.executable, '-m', 'playwright', 'install', 'chromium']
-        subprocess.run(cmd, env=env, check=True)
-    except subprocess.CalledProcessError as exc:
-        print(f"ERROR: Failed to install Chromium browser: {exc}", file=sys.stderr)
+    _browser_ready = _install_chromium(env)
 
 
 def _run_flask(port: int):
