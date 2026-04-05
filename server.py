@@ -938,13 +938,15 @@ def api_browser_status():
     When running from source (run.sh), Chromium is installed before Flask
     starts, so the browser is always ready by the time this is called.
     """
-    # main.py sets _browser_ready on the module after download completes.
-    # Import it at call time so we always read the current value.
+    # main.py sets _browser_ready once Chromium download completes.
+    # When bundled by PyInstaller, main.py runs as '__main__' (not 'main'),
+    # so look it up via sys.modules to get the live instance, not a fresh import.
+    import sys as _sys
+    _main = _sys.modules.get('__main__') or _sys.modules.get('main')
     try:
-        import main as _main
         ready = bool(_main._browser_ready)
-    except (ImportError, AttributeError):
-        # Running from source (not bundled) — Playwright is always pre-installed
+    except AttributeError:
+        # Running from source (run.sh) — Playwright is pre-installed before Flask starts
         ready = True
     return jsonify({"ready": ready})
 
