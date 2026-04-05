@@ -1,0 +1,18 @@
+# Normalize line endings in the repo to LF; check out as LF on all platforms.
+* text=auto eol=lf
+
+# Windows scripts must use CRLF so they work when double-clicked or run from cmd.exe
+*.ps1  text eol=crlf
+*.cmd  text eol=crlf
+*.bat  text eol=crlf
+
+# Shell scripts must always use LF — CRLF breaks the shebang and set -e
+*.sh   text eol=lf
+
+# Binary assets — no line-ending translation
+*.icns binary
+*.ico  binary
+*.png  binary
+*.jpg  binary
+*.gif  binary
+*.pdf  binary

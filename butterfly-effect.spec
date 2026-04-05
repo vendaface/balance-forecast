@@ -43,7 +43,10 @@ a = Analysis(
     hiddenimports=[
         *playwright_hidden,
         *webview_hidden,
-        'webview.platforms.cocoa',   # macOS platform — not auto-detected
+        # Platform-specific pywebview backend — not auto-detected by PyInstaller
+        'webview.platforms.cocoa'        if sys.platform == 'darwin'  else
+        'webview.platforms.edgechromium' if sys.platform == 'win32'   else
+        'webview.platforms.gtk',
         # AI providers
         'anthropic',
         'openai',
@@ -86,7 +89,8 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon=str(SRC / 'static' / 'icon.icns') if sys.platform == 'darwin' else None,
+    icon=(str(SRC / 'static' / 'icon.icns') if sys.platform == 'darwin' else
+          str(SRC / 'static' / 'icon.ico')  if sys.platform == 'win32'  else None),
 )
 
 coll = COLLECT(

@@ -31,7 +31,7 @@ def _load_ics_url() -> str:
     config_path = Path(__file__).parent / "config.yaml"
     if not config_path.exists():
         raise RuntimeError("config.yaml not found.")
-    config = yaml.safe_load(config_path.read_text())
+    config = yaml.safe_load(config_path.read_text(encoding='utf-8'))
     url = (config.get("calendar", {}).get("ics_url", "") or "").strip()
     if not url or "PASTE_YOUR" in url:
         raise RuntimeError(
@@ -177,7 +177,7 @@ def get_events(horizon_days: int = 45) -> list[dict]:
 
 if __name__ == "__main__":
     config_path = Path(__file__).parent / "config.yaml"
-    config = yaml.safe_load(config_path.read_text()) if config_path.exists() else {}
+    config = yaml.safe_load(config_path.read_text(encoding='utf-8')) if config_path.exists() else {}
     horizon = config.get("forecast", {}).get("horizon_days", 45)
 
     try:

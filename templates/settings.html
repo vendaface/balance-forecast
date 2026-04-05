@@ -1440,9 +1440,7 @@ function loadMonarchAccounts() {
   btn.textContent = 'Connecting\u2026';
   btn.disabled = true;
   statusEl.innerHTML = '<span class="inline-spinner"></span>'
-    + 'Checking browser\u2026 A Chromium window will open \u2014 <strong>log in to Monarch</strong>'
-    + ' when prompted. The window will close automatically after a successful login'
-    + ' (~30\u201360 seconds). If this is your first run, Chromium may need to download first (~250\u00a0MB)\u2026';
+    + 'A Chromium window will open \u2014 <strong>log in to Monarch when prompted</strong>.';
   statusEl.style.display = 'block';
 
   // First fetch: establishes the Playwright session and does an initial account pull
@@ -1640,11 +1638,11 @@ function factoryReset() {
   statusEl.style.display = 'block';
 
   function startPolling() {
-    var deadline = Date.now() + 45000;
+    var deadline = Date.now() + 90000;
     var interval = setInterval(function() {
       if (Date.now() > deadline) {
         clearInterval(interval);
-        statusEl.textContent = 'Server did not respond within 45 s. Try navigating to the app manually.';
+        statusEl.textContent = 'Server did not respond within 90 s. Navigate manually: http://localhost:5002/';
         btn.textContent = '\uD83D\uDDD1 Reset to Factory Defaults';
         btn.disabled = false;
         return;
@@ -1661,16 +1659,16 @@ function factoryReset() {
     }, 750);
   }
 
-  // Wait 4 s before polling: gives the background thread time to finish
-  // deleting files and call server.sh restart before the first /api/ping.
+  // Wait 5 s before polling: gives the background thread time to finish
+  // deleting files and call server.ps1/server.sh restart before the first /api/ping.
   // Timeline: t=0.5s files deleted, t=1.5s done, t=2.5s restart called,
-  //           t=4.0s poll starts — server is down or coming back up ✓
+  //           t=5.0s poll starts — server is down or coming back up ✓
   function delayedPoll() {
     statusEl.textContent = 'Deleting data\u2026 do not close this tab.';
     setTimeout(function() {
-      statusEl.textContent = 'Restarting server\u2026';
+      statusEl.textContent = 'Restarting server\u2026 this may take up to 30 seconds.';
       startPolling();
-    }, 4000);
+    }, 5000);
   }
 
   fetch('/api/factory-reset', { method: 'POST' })

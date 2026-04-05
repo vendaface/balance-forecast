@@ -15,6 +15,8 @@ from pathlib import Path
 
 if platform.system() == 'Darwin':
     APP_DATA_DIR = Path.home() / 'Library' / 'Application Support' / 'Butterfly Effect'
+elif platform.system() == 'Windows':
+    APP_DATA_DIR = Path.home() / 'AppData' / 'Roaming' / 'Butterfly Effect'
 else:
     # Linux: follow XDG Base Directory specification
     _xdg = os.environ.get('XDG_DATA_HOME', '')

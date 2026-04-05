@@ -38,7 +38,7 @@ _INSIGHTS_FILE = APP_DATA_DIR / "insights.json"
 def _load_config() -> dict:
     if not _CONFIG_PATH.exists():
         raise RuntimeError("config.yaml not found.")
-    return yaml.safe_load(_CONFIG_PATH.read_text())
+    return yaml.safe_load(_CONFIG_PATH.read_text(encoding='utf-8'))
 
 
 def run(dry_run: bool = False) -> None:
@@ -127,8 +127,8 @@ def run(dry_run: bool = False) -> None:
         print(f"ERROR: {e}", file=sys.stderr)
         sys.exit(1)
 
-    _INSIGHTS_FILE.write_text(json.dumps(insights, indent=2, default=str))
-    print(f"[{datetime.now().strftime('%H:%M:%S')}] ✓ Insights written to {_INSIGHTS_FILE.name}")
+    _INSIGHTS_FILE.write_text(json.dumps(insights, indent=2, default=str), encoding='utf-8')
+    print(f"[{datetime.now().strftime('%H:%M:%S')}] [OK] Insights written to {_INSIGHTS_FILE.name}")
 
     # Print summary
     print(f"\nNarrative: {insights.get('narrative', '')[:200]}")
@@ -142,7 +142,7 @@ def run(dry_run: bool = False) -> None:
     if flags:
         print(f"Risk flags: {len(flags)}")
         for f in flags:
-            print(f"  ⚠ {f}")
+            print(f"  [!] {f}")
 
 
 if __name__ == "__main__":

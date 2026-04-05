@@ -118,7 +118,7 @@ class GraphQLCollector:
                 return
             if self.debug:
                 keys = list(body.keys()) if isinstance(body, dict) else type(body).__name__
-                print(f"    → JSON keys: {keys}")
+                print(f"    -> JSON keys: {keys}")
             if isinstance(body, dict) and "data" in body:
                 self._responses.append(body["data"])
 
@@ -281,7 +281,7 @@ async def _do_login(page, context):
 
     # Save browser state — all future runs will be headless
     await context.storage_state(path=str(BROWSER_STATE_FILE))
-    print("✓ Session saved — future runs will be headless.")
+    print("[OK] Session saved - future runs will be headless.")
 
 
 async def _fetch_all(checking_account_id: str, history_days: int, _retried: bool = False):
@@ -658,7 +658,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     config_path = Path(__file__).parent / "config.yaml"
-    config = yaml.safe_load(config_path.read_text()) if config_path.exists() else {}
+    config = yaml.safe_load(config_path.read_text(encoding='utf-8')) if config_path.exists() else {}
     account_id = config.get("monarch", {}).get("checking_account_id", "")
 
     if args.list_accounts:

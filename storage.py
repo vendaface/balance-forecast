@@ -79,23 +79,23 @@ def _check_list_schema(
     Logs a warning (to stdout) for each dropped record — never raises.
     """
     if not isinstance(data, list):
-        print(f"[schema] {path.name}: expected a list, got {type(data).__name__} — ignoring file")
+        print(f"[schema] {path.name}: expected a list, got {type(data).__name__} - ignoring file")
         return []
     good = []
     for i, item in enumerate(data):
         if not isinstance(item, dict):
-            print(f"[schema] {path.name}[{i}]: expected dict, got {type(item).__name__} — skipping")
+            print(f"[schema] {path.name}[{i}]: expected dict, got {type(item).__name__} - skipping")
             continue
         bad = False
         for k in required_str_keys:
             if not isinstance(item.get(k), str) or not item[k].strip():
-                print(f"[schema] {path.name}[{i}]: missing/invalid string field '{k}' — skipping")
+                print(f"[schema] {path.name}[{i}]: missing/invalid string field '{k}' - skipping")
                 bad = True
                 break
         if not bad:
             for k in required_num_keys:
                 if not isinstance(item.get(k), (int, float)):
-                    print(f"[schema] {path.name}[{i}]: missing/invalid numeric field '{k}' — skipping")
+                    print(f"[schema] {path.name}[{i}]: missing/invalid numeric field '{k}' - skipping")
                     bad = True
                     break
         if not bad:
@@ -114,7 +114,7 @@ def _parse_corrections() -> list[dict]:
     """
     if not _USER_CONTEXT_FILE.exists():
         return []
-    lines = _USER_CONTEXT_FILE.read_text().splitlines()
+    lines = _USER_CONTEXT_FILE.read_text(encoding='utf-8').splitlines()
     results: list[dict] = []
     cur_type = "Correction"  # tracks section for old-format migration
     for i, raw in enumerate(lines):
@@ -153,7 +153,7 @@ def _load_scenarios() -> list[dict]:
     if not _SCENARIOS_FILE.exists():
         return []
     try:
-        data = json.loads(_SCENARIOS_FILE.read_text())
+        data = json.loads(_SCENARIOS_FILE.read_text(encoding='utf-8'))
         return _check_list_schema(
             _SCENARIOS_FILE, data,
             required_str_keys=("date", "description"),
@@ -168,17 +168,17 @@ def _load_payment_overrides() -> dict:
     if not _PAYMENT_OVERRIDES_FILE.exists():
         return {}
     try:
-        data = json.loads(_PAYMENT_OVERRIDES_FILE.read_text())
+        data = json.loads(_PAYMENT_OVERRIDES_FILE.read_text(encoding='utf-8'))
         if not isinstance(data, dict):
-            print(f"[schema] {_PAYMENT_OVERRIDES_FILE.name}: expected a dict — ignoring file")
+            print(f"[schema] {_PAYMENT_OVERRIDES_FILE.name}: expected a dict - ignoring file")
             return {}
         good = {}
         for k, v in data.items():
             if not isinstance(v, dict):
-                print(f"[schema] {_PAYMENT_OVERRIDES_FILE.name}[{k!r}]: expected dict value — skipping")
+                print(f"[schema] {_PAYMENT_OVERRIDES_FILE.name}[{k!r}]: expected dict value - skipping")
                 continue
             if not isinstance(v.get("name"), str) or not isinstance(v.get("amount"), (int, float)):
-                print(f"[schema] {_PAYMENT_OVERRIDES_FILE.name}[{k!r}]: missing name/amount — skipping")
+                print(f"[schema] {_PAYMENT_OVERRIDES_FILE.name}[{k!r}]: missing name/amount - skipping")
                 continue
             good[k] = v
         return good
@@ -191,7 +191,7 @@ def _load_payment_skips() -> list:
     if not _PAYMENT_SKIPS_FILE.exists():
         return []
     try:
-        data = json.loads(_PAYMENT_SKIPS_FILE.read_text())
+        data = json.loads(_PAYMENT_SKIPS_FILE.read_text(encoding='utf-8'))
         return _check_list_schema(
             _PAYMENT_SKIPS_FILE, data,
             required_str_keys=("name", "month"),
@@ -205,7 +205,7 @@ def _load_payment_monthly_amounts() -> list:
     if not _PAYMENT_MONTHLY_AMOUNTS_FILE.exists():
         return []
     try:
-        data = json.loads(_PAYMENT_MONTHLY_AMOUNTS_FILE.read_text())
+        data = json.loads(_PAYMENT_MONTHLY_AMOUNTS_FILE.read_text(encoding='utf-8'))
         return _check_list_schema(
             _PAYMENT_MONTHLY_AMOUNTS_FILE, data,
             required_str_keys=("name",),
@@ -220,7 +220,7 @@ def _load_insights() -> dict | None:
     if not _INSIGHTS_FILE.exists():
         return None
     try:
-        return json.loads(_INSIGHTS_FILE.read_text())
+        return json.loads(_INSIGHTS_FILE.read_text(encoding='utf-8'))
     except Exception:
         return None
 
@@ -230,7 +230,7 @@ def _load_dismissed_suggestions() -> list:
     if not _DISMISSED_SUGGESTIONS_FILE.exists():
         return []
     try:
-        data = json.loads(_DISMISSED_SUGGESTIONS_FILE.read_text())
+        data = json.loads(_DISMISSED_SUGGESTIONS_FILE.read_text(encoding='utf-8'))
         return data if isinstance(data, list) else []
     except Exception:
         return []
@@ -246,7 +246,7 @@ def _load_payment_day_overrides() -> dict:
     if not _PAYMENT_DAY_OVERRIDES_FILE.exists():
         return {}
     try:
-        data = json.loads(_PAYMENT_DAY_OVERRIDES_FILE.read_text())
+        data = json.loads(_PAYMENT_DAY_OVERRIDES_FILE.read_text(encoding='utf-8'))
         if not isinstance(data, dict):
             return {}
         good = {}
@@ -275,7 +275,7 @@ def _load_monarch_raw_cache() -> dict | None:
     if not _MONARCH_RAW_CACHE_FILE.exists():
         return None
     try:
-        data = json.loads(_MONARCH_RAW_CACHE_FILE.read_text())
+        data = json.loads(_MONARCH_RAW_CACHE_FILE.read_text(encoding='utf-8'))
         if not isinstance(data, dict):
             return None
         required = ("fetched_at", "balance", "transactions", "recurring")
