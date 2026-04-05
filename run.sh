@@ -255,9 +255,9 @@ export PLAYWRIGHT_BROWSERS_PATH="$PLAYWRIGHT_CACHE"
 
 if $_need_playwright; then
   STEP=$((STEP+1))
-  write_status "playwright" 47 "Downloading Chromium browser (~150 MB)…" $STEP $TOTAL_STEPS
+  write_status "playwright" 47 "Downloading Chromium browser (~250 MB)…" $STEP $TOTAL_STEPS
   echo ""
-  echo "Installing Chromium browser (first time only, ~150 MB)..."
+  echo "Installing Chromium browser (first time only, ~250 MB)..."
 
   # ── Debug: confirm playwright Python package is reachable ──
   echo "  [debug] PLAYWRIGHT_BROWSERS_PATH=$PLAYWRIGHT_BROWSERS_PATH"

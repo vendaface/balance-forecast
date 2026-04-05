@@ -85,7 +85,7 @@ def _ensure_playwright_browser():
     if PLAYWRIGHT_CACHE.exists() and any(PLAYWRIGHT_CACHE.iterdir()):
         _browser_ready = True
         return
-    print("First run: downloading Chromium browser (one-time, ~150 MB)...")
+    print("First run: downloading Chromium browser (one-time, ~250 MB)...")
     env = {**os.environ, 'PLAYWRIGHT_BROWSERS_PATH': str(PLAYWRIGHT_CACHE)}
     _browser_ready = _install_chromium(env)
 
@@ -191,7 +191,7 @@ _LOADING_HTML = """<!DOCTYPE html>
       // may be happening silently in the background (non-blocking to the UI).
       setTimeout(function(){
         var el=document.getElementById('lh-sub');
-        if(el) el.textContent='Downloading Chromium for Monarch data (first run, ~150\u202fMB)\u2026';
+        if(el) el.textContent='Downloading Chromium for Monarch data (first run, ~250\u202fMB)\u2026';
       }, 8000);
     </script>
   </div>

@@ -20,7 +20,7 @@ if [ "${1:-}" = "--browser-only" ]; then
   if [ -d "$PLAYWRIGHT_CACHE" ]; then
     rm -rf "$PLAYWRIGHT_CACHE"
     echo "Deleted Playwright cache: $PLAYWRIGHT_CACHE"
-    echo "Chromium will re-download (~150 MB) on next launch or Connect to Monarch."
+    echo "Chromium will re-download (~250 MB) on next launch or Connect to Monarch."
   else
     echo "Playwright cache not found — already clean."
   fi
@@ -34,7 +34,7 @@ echo "  Project dir  : $SCRIPT_DIR"
 echo ""
 echo "Use this only for testing a fresh install simulation."
 echo ""
-read -p "Also delete the Playwright Chromium browser cache (~150 MB re-download)? (yes/no): " del_browser
+read -p "Also delete the Playwright Chromium browser cache (~250 MB re-download)? (yes/no): " del_browser
 
 echo ""
 read -p "Are you sure you want to reset everything? (yes/no): " confirm
