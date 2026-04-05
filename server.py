@@ -157,8 +157,83 @@ def index():
 
 @app.route("/refresh")
 def refresh():
-    _clear_all_cache()   # force full Monarch re-fetch on next load
-    return redirect(url_for("index"))
+    _clear_all_cache()   # force full Monarch re-fetch on next /api/forecast call
+    first_run = request.args.get("first") == "1"
+    headline = "Building your first forecast\u2026" if first_run else "Fetching latest data from Monarch\u2026"
+    sub = "Connecting to Monarch and pulling your accounts, transactions, and recurring bills." if first_run \
+        else "Pulling your latest accounts, transactions, and recurring bills."
+    # Return an inline loading page instead of redirecting to /.
+    # A redirect would make the WKWebView show a blank browser-loading state for
+    # the entire duration of the Monarch fetch (up to several minutes on first run).
+    # Instead, we serve this page immediately and let client-side JS call
+    # /api/forecast, which blocks in a Flask worker thread until data is ready,
+    # then navigates to / once the cache is warm.
+    return Response(f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Butterfly Effect</title>
+<style>
+*{{margin:0;padding:0;box-sizing:border-box}}
+html,body{{height:100%;background:#0d1117;display:flex;align-items:center;justify-content:center;
+  font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif;color:#f0f0f5}}
+.card{{text-align:center;max-width:340px;padding:48px 32px}}
+@keyframes flutter{{0%,100%{{transform:translateY(0) rotate(-2deg)}}50%{{transform:translateY(-10px) rotate(2deg)}}}}
+.icon{{animation:flutter 2.5s ease-in-out infinite;display:inline-block;margin-bottom:24px}}
+h1{{font-size:1.15rem;font-weight:600;margin-bottom:10px}}
+p{{font-size:0.85rem;opacity:0.55;line-height:1.6;margin-bottom:28px}}
+.bar-wrap{{width:220px;height:3px;background:#21262d;border-radius:2px;overflow:hidden;margin:0 auto}}
+@keyframes shimmy{{0%{{transform:translateX(-100%)}}100%{{transform:translateX(250%)}}}}
+.bar{{height:100%;width:40%;background:linear-gradient(90deg,#0a84ff,#30d158);border-radius:2px;
+  animation:shimmy 1.7s cubic-bezier(0.4,0,0.6,1) infinite}}
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="icon">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="80" height="80" aria-hidden="true">
+      <defs>
+        <linearGradient id="rl-ul" x1="50" y1="54" x2="5" y2="24" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stop-color="#1a6fff"/><stop offset="100%" stop-color="#5ee7d4"/>
+        </linearGradient>
+        <linearGradient id="rl-ur" x1="50" y1="54" x2="95" y2="24" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stop-color="#1a6fff"/><stop offset="100%" stop-color="#30d158"/>
+        </linearGradient>
+        <linearGradient id="rl-ll" x1="50" y1="60" x2="22" y2="88" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stop-color="#005ec0"/><stop offset="100%" stop-color="#34c759"/>
+        </linearGradient>
+        <linearGradient id="rl-lr" x1="50" y1="60" x2="78" y2="88" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stop-color="#005ec0"/><stop offset="100%" stop-color="#5ee7d4"/>
+        </linearGradient>
+      </defs>
+      <path d="M 50,48 C 40,25 12,12 5,26 C 1,40 14,56 50,60 Z" fill="url(#rl-ul)"/>
+      <path d="M 50,48 C 60,25 88,12 95,26 C 99,40 86,56 50,60 Z" fill="url(#rl-ur)"/>
+      <path d="M 50,60 C 38,64 20,72 22,84 C 24,94 40,92 50,66 Z" fill="url(#rl-ll)"/>
+      <path d="M 50,60 C 62,64 80,72 78,84 C 76,94 60,92 50,66 Z" fill="url(#rl-lr)"/>
+      <ellipse cx="50" cy="54" rx="3" ry="22" fill="#0d1229"/>
+      <path d="M 49,32 Q 38,17 33,9" stroke="#0d1229" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+      <circle cx="33" cy="9" r="1.8" fill="#1a6fff"/>
+      <path d="M 51,32 Q 62,17 67,9" stroke="#0d1229" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+      <circle cx="67" cy="9" r="1.8" fill="#30d158"/>
+    </svg>
+  </div>
+  <h1>{headline}</h1>
+  <p>{sub}<br>This takes about a minute on first run.</p>
+  <div class="bar-wrap"><div class="bar"></div></div>
+</div>
+<script>
+(function poll() {{
+  fetch('/api/forecast')
+    .then(function(r) {{
+      if (r.ok) {{ window.location.href = '/'; return; }}
+      setTimeout(poll, 3000);
+    }})
+    .catch(function() {{ setTimeout(poll, 3000); }});
+}})();
+</script>
+</body>
+</html>""", mimetype='text/html')
 
 
 # ── API: forecast ──────────────────────────────────────────────────────────────

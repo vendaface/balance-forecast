@@ -2769,10 +2769,9 @@ function toggleTheme() {
 
 {% if auto_refresh and not data %}
 <script>
-  // No cached data yet — auto-start the first forecast fetch
+  // No cached data yet — navigate to the loading page which fetches in background
   window.addEventListener('DOMContentLoaded', function() {
-    document.getElementById('refreshOverlay').style.display = 'flex';
-    setTimeout(function() { window.location.href = '/refresh'; }, 300);
+    window.location.href = '/refresh?first=1';
   });
 </script>
 {% endif %}
