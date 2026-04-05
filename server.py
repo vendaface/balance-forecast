@@ -1040,10 +1040,19 @@ def api_restart_server():
     def _restart():
         import time
         time.sleep(1.5)
-        subprocess.run(
-            [str(Path(__file__).parent / "server.sh"), "restart"],
-            cwd=str(Path(__file__).parent),
-        )
+        import sys as _sys
+        _base = Path(__file__).parent
+        if _sys.platform == 'win32':
+            subprocess.run(
+                ['powershell', '-ExecutionPolicy', 'Bypass', '-File',
+                 str(_base / 'server.ps1'), 'restart'],
+                cwd=str(_base),
+            )
+        else:
+            subprocess.run(
+                [str(_base / 'server.sh'), 'restart'],
+                cwd=str(_base),
+            )
     threading.Thread(target=_restart, daemon=True).start()
     return jsonify({"ok": True})
 
@@ -1106,10 +1115,18 @@ def api_factory_reset():
         _clear_all_cache()
 
         time.sleep(1.0)
-        subprocess.run(
-            [str(base / "server.sh"), "restart"],
-            cwd=str(base),
-        )
+        import sys as _sys
+        if _sys.platform == 'win32':
+            subprocess.run(
+                ['powershell', '-ExecutionPolicy', 'Bypass', '-File',
+                 str(base / 'server.ps1'), 'restart'],
+                cwd=str(base),
+            )
+        else:
+            subprocess.run(
+                [str(base / 'server.sh'), 'restart'],
+                cwd=str(base),
+            )
 
     threading.Thread(target=_do_reset, daemon=True).start()
     return jsonify({"ok": True})

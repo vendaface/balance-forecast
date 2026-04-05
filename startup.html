@@ -294,6 +294,13 @@
             + '<code class="cmd">brew install python@3.12</code>'
             + '<p><strong>Option 2 \u2014 Direct download</strong></p>'
             + '<p>Visit <a href="https://python.org/downloads" style="color:#0a84ff">python.org/downloads</a> and install Python 3.12 or newer.</p>';
+          if (os === 'windows') return ''
+            + '<p>Butterfly Effect needs Python 3.11+.</p>'
+            + '<p><strong>Option 1 \u2014 winget</strong> <span style="color:#636366">(Windows 11 / updated Windows 10)</span></p>'
+            + '<code class="cmd">winget install Python.Python.3.12</code>'
+            + '<p><strong>Option 2 \u2014 Direct download</strong></p>'
+            + '<p>Visit <a href="https://python.org/downloads" style="color:#0a84ff">python.org/downloads</a> and install Python 3.12 or newer.</p>'
+            + '<p style="color:#8e8e93;font-size:0.9em">\u2139\ufe0f During installation, check <strong>\u201cAdd Python to PATH\u201d</strong>.</p>';
           return ''
             + '<p>Butterfly Effect needs Python 3.11+.</p>'
             + '<p><strong>Ubuntu / Debian:</strong></p>'
@@ -307,6 +314,9 @@
       novenv: {
         title: '\u26a0\ufe0f Python venv module is missing',
         body: function (os) {
+          if (os === 'windows') return ''
+            + '<p>Python is installed but the virtual environment could not be created.</p>'
+            + '<p>Ensure Python 3.12+ was installed using the standard installer from <a href="https://python.org/downloads" style="color:#0a84ff">python.org/downloads</a>, then close this window and run <code>run.cmd</code> again.</p>';
           return ''
             + '<p>Python is installed but the <code>venv</code> module is missing. On Ubuntu, Debian, and Linux Mint it is a separate package:</p>'
             + '<code class="cmd">sudo apt install python3-venv</code>'
@@ -316,6 +326,11 @@
       pipfail: {
         title: '\u26a0\ufe0f Dependency installation failed',
         body: function (os) {
+          if (os === 'windows') return ''
+            + '<p>pip could not install the required packages. This usually means a corrupted Python environment.</p>'
+            + '<p><strong>Try resetting the virtual environment:</strong></p>'
+            + '<code class="cmd">rmdir /s /q .venv\nrun.cmd</code>'
+            + '<p>If the problem persists, check your internet connection and try again.</p>';
           return ''
             + '<p>pip could not install the required packages. This usually means a corrupted Python environment.</p>'
             + '<p><strong>Try resetting the virtual environment:</strong></p>'

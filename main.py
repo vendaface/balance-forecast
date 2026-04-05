@@ -234,10 +234,17 @@ def main():
     import socket as _socket
     with _socket.socket(_socket.AF_INET, _socket.SOCK_STREAM) as _s:
         if _s.connect_ex(('127.0.0.1', port)) == 0:
+            if sys.platform == 'win32':
+                _kill_hint = (
+                    f'netstat -ano | findstr :{port}  '
+                    f'# note the PID, then: taskkill /PID <pid> /F'
+                )
+            else:
+                _kill_hint = f'lsof -ti :{port} | xargs kill -9'
             print(
                 f'\nERROR: Port {port} is already in use.\n'
                 f'The app may already be running at http://localhost:{port}\n'
-                f'If not, run:  lsof -ti :{port} | xargs kill -9\n',
+                f'If not, run:  {_kill_hint}\n',
                 file=sys.stderr,
             )
             sys.exit(1)
