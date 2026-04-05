@@ -1,4 +1,4 @@
-# Butterfly Effect v0.9.3-beta
+# Butterfly Effect v0.9.5-beta
 
 > **Unofficial tool — not affiliated with or endorsed by Monarch Money, Inc. Use at your own risk.**
 
@@ -27,9 +27,103 @@ Key capabilities:
 - **Forecast chart** — rolling account balance projection based on your Monarch recurring schedule
 - **Scenario Modeling** — enter upcoming real or potential income or expenses, one-time or recurring, to more accurately model your future balances
 - **Transaction Overrides** — correct the amount, dates, or frequency of recurring transactions, or skip/delete them altogether
-- **AI Insights** (optional) — Fine-tune predictions with seasonal expense patterns, savings or transfer recommendations, and more based on your Monarch goals and existing forecast scenario
+- **AI Insights** (optional) — fine-tune predictions with seasonal expense patterns, savings or transfer recommendations, and more based on your Monarch goals and existing forecast scenario
 - **Calendar Integration** (optional) — use public calendars to supplement Monarch's recurring or one-time transactions
-- **Dark mode** - prevent safety squints and preserve your retinal health
+- **Dark mode** — prevent safety squints and preserve your retinal health
+
+---
+
+## What you'll need before starting
+
+- A **[Monarch Money](https://www.monarchmoney.com/)** account
+- **Python 3.11 or later** (not required if using the bundled Mac app from Releases)
+  - **Mac (running from source):** `brew install python` or download from [python.org](https://python.org/downloads)
+  - **Linux:** `sudo apt install python3 python3-venv` (Debian/Ubuntu) or `sudo dnf install python3` (Fedora)
+  - **Windows:** Download and run the installer from [python.org/downloads](https://python.org/downloads) — check **"Add Python to PATH"** during install. Or use winget: `winget install Python.Python.3.12`
+
+**Optional — for AI insights:**
+An API key from one of these providers (pick one). See [Setting up AI Insights](#setting-up-ai-insights) below for step-by-step instructions.
+- [Anthropic (Claude)](https://console.anthropic.com/) — recommended
+- [OpenAI (GPT)](https://platform.openai.com/)
+- [Google (Gemini)](https://aistudio.google.com/)
+
+---
+
+## Getting started
+
+### Step 1 — Get the app
+
+**Mac:** Go to the [Releases page](../../releases/latest) and download **`Butterfly.Effect-mac.dmg`**. Open the `.dmg`, drag the app to your Applications folder, and double-click to launch.
+
+> The first time you open it, macOS may warn you it's from an unidentified developer. Right-click the app → **Open** → **Open** to proceed. You only need to do this once.
+
+**Linux:** Go to the [Releases page](../../releases/latest) and download **`butterfly-effect-linux-x86_64.AppImage`**. Make it executable and run it:
+```bash
+chmod +x butterfly-effect-*-linux-x86_64.AppImage
+./butterfly-effect-*-linux-x86_64.AppImage
+```
+
+**Windows (or running from source on any platform):** Clone or download this repository, then launch with the platform script for your OS:
+```
+git clone https://github.com/vendaface/butterfly-effect.git
+cd butterfly-effect
+```
+
+### Step 2 — Launch the app
+
+**Mac (bundled app):** Python is bundled — no extra installation needed. Double-click **Butterfly Effect** in your Applications folder. A startup page opens in your browser while the server starts.
+
+**Mac (from source) / Linux:** Run `./run.sh` from the project folder. On first run the script creates a Python virtual environment and installs all required packages (takes a couple of minutes). The startup page will guide you if Python is missing or too old.
+
+**Windows:** Double-click **`Start Butterfly Effect - Windows.cmd`** in the project folder, or run it from a Command Prompt. On first run it creates a Python virtual environment, installs all required packages, and downloads the Chromium browser used for Monarch data fetching — this takes a few minutes and only happens once. The startup screen shows progress and will guide you if Python is not found.
+
+> **Windows tip:** If Python was just installed and `Start Butterfly Effect - Windows.cmd` can't find it, open a **new** Command Prompt window before running it again — the PATH update from the Python installer only applies to new windows.
+
+### Step 3 — Connect to Monarch
+
+Once setup is complete the app takes you to the **Settings** page. The **Monarch Connection** section (highlighted with a blue border) is the only required step:
+
+1. Click **Connect to Monarch** — a Chrome browser window opens automatically. Log in to Monarch when prompted; the window closes on its own after a successful login.
+2. Wait a moment for your Monarch accounts to populate, then select your **primary bill pay account** from the dropdown. Click **Save Monarch Settings** to complete the setup.
+
+Once these two steps are complete, the **Go to Dashboard →** button at the top of the page will be enabled. Click it to pull your transactions and open your forecast — this may take 30 seconds or so on the first fetch.
+
+> Further down the Settings page are **AI Insights** and **Forecast Settings**. These are both optional on first run and can always be customized later.
+
+### Step 4 — View & customize your first forecast
+
+The first time you open the dashboard the app fetches your transaction history from Monarch. Your forecast chart appears at the top of the left pane when it's done. After the first run, your data stays cached so the dashboard loads instantly on future visits.
+
+---
+
+## Day-to-day use
+
+**Starting the app:**
+- **Mac (bundled):** Double-click **Butterfly Effect** in Applications, or double-click **`Start Butterfly Effect - Mac.command`** in the project folder.
+- **Mac / Linux (from source):** Run `./run.sh` from the project folder.
+- **Windows:** Double-click **`Start Butterfly Effect - Windows.cmd`**, or run it from a Command Prompt.
+
+A startup page opens in your browser and redirects automatically once the server is ready. You can also bookmark `http://localhost:5002`.
+
+**Refresh Forecast** — click the button in the upper right whenever you want updated transaction data from Monarch. Takes 1–2 minutes.
+
+**Run AI Analysis** — generates fresh AI insights. Run this once a day or whenever you want an updated analysis. Requires an AI API key in Settings → AI Insights.
+
+**AI Insights drawer** — click the **AI** tab on the right edge of the window to slide the panel in over the transaction schedule. Click the **×** inside, or click the tab again, to close it.
+
+**Resize columns** — drag the vertical handle between the two panes to adjust how much width each side gets.
+
+**Settings** — click the gear icon (⚙) in the top-right to open Settings. Key options:
+
+| Setting | Description |
+|---|---|
+| Primary Account | Select the account used for bill payments — refresh the list if you don't see it |
+| AI Insights | Enable AI Insights (off by default); set your preferred provider (Anthropic, OpenAI, or Google), choose your model and add your API key; set how many months of transaction history to include; customize how long before the analysis is labeled stale. Kick off an AI Analysis right from Settings and watch it run live |
+| Forecast Horizon | How many days to project forward (default: 45) |
+| Buffer Threshold | Get a warning when your balance drops below this dollar amount |
+| User Context & AI Corrections | Hand-edit your AI corrections in free text (also stored in `user_context.md`) |
+| Calendar Integration | Overlay custom calendar transaction events onto the forecast chart with Google Calendar, iCloud, or a custom ICS feed |
+| App Settings | Change the default port, turn on debug mode, or reset to factory defaults |
 
 ---
 
@@ -63,7 +157,7 @@ The right pane shows a scrollable agenda of upcoming dates with clickable transa
 
 ### Editing a transaction inline
 
-Click any transaction in the schedule to edit it's data. Change dates, amounts, suppress the series entirely, or skip a single occurrence. The forecast updates instantly when you save.
+Click any transaction in the schedule to edit its data. Change dates, amounts, suppress the series entirely, or skip a single occurrence. The forecast updates instantly when you save.
 
 <img src="docs/screenshots/dashboard-tx-edit.png" width="640" alt="Inline editing panel showing amount, skip, and suppress options">
 
@@ -79,7 +173,7 @@ Click the **AI** tab on the right edge of the window to slide the panel in from 
 
 ### Scenario modeling
 
-Add transfers or expenses to model their impact on the forecast without modifying your real data. Modeling transations can be one-time or recurring, and may be removed at any time.
+Add transfers or expenses to model their impact on the forecast without modifying your real data. Modeling transactions can be one-time or recurring, and may be removed at any time.
 
 <img src="docs/screenshots/dashboard-scenario-modeling.png" width="640" alt="Scenario modeling panel with example transfer entry">
 
@@ -87,7 +181,7 @@ Add transfers or expenses to model their impact on the forecast without modifyin
 
 ### Dark mode
 
-Switch between light and dark mode using the icon in the header. Avoid safety squints, crow's feet, and retinal burn-in.
+Switch between light and dark mode using the icon in the header.
 
 <img src="docs/screenshots/dashboard-dark.png" width="640" alt="Balance Forecast dashboard in dark mode">
 
@@ -95,7 +189,7 @@ Switch between light and dark mode using the icon in the header. Avoid safety sq
 
 ### Settings — first run
 
-On first launch the user just needs to double-click one file in the folder and the app opens in the default browser, first with a startup splash page and then to the Settings page with the Monarch Connection section highlighted. (If no Python installation is detected the startup screen will provide instructions on how to install before continuing.
+On first launch the app opens a startup splash page and then takes you directly to the Settings page with the Monarch Connection section highlighted. If no Python installation is detected the startup screen provides instructions for installing it before continuing.
 
 <img src="docs/screenshots/settings-firstrun-setup.png" width="640" alt="Settings page on first run showing Monarch Connection section highlighted with a blue border">
 
@@ -116,85 +210,6 @@ Connect to Monarch via a temporary Chrome window. Your credentials go directly t
 Configure your AI provider, model, and API key here. The **Last generated** line shows the timestamp, token counts, and cost of the most recent analysis. You can kick off a new analysis directly from this page and watch the live progress log, or update it from the dashboard. The AI Insights button indicates the freshness of your last update, which is a customizable number of hours.
 
 <img src="docs/screenshots/settings-ai.png" width="640" alt="AI Insights settings panel showing provider selection, model, API key field, and Run AI Analysis button">
-
----
-
-## What you'll need before starting
-
-- A **Mac** (macOS 13+) or **Linux** computer — Windows not supported in this version
-- A **[Monarch Money](https://www.monarchmoney.com/)** account
-- **Python 3.11 or later** — **Linux only** (Mac users get Python bundled inside the app)
-  - Linux: `sudo apt install python3 python3-venv` (Debian/Ubuntu) or `sudo dnf install python3` (Fedora)
-
-**Optional — for AI insights:**
-An API key from one of these providers (pick one). See [Setting up AI Insights](#setting-up-ai-insights) below for step-by-step instructions.
-- [Anthropic (Claude)](https://console.anthropic.com/) — recommended
-- [OpenAI (GPT)](https://platform.openai.com/)
-- [Google (Gemini)](https://aistudio.google.com/)
-
----
-
-## Getting started
-
-### Step 1 — Download the app
-
-**On Mac:** Go to the [Releases page](../../releases/latest) and download **`Butterfly.Effect-mac.dmg`**. Open the `.dmg`, drag the app to your Applications folder, and double-click to launch.
-
-> The first time you open it, macOS may warn you it's from an unidentified developer. Right-click the app → **Open** → **Open** to proceed. You only need to do this once.
-
-**On Linux:** Go to the [Releases page](../../releases/latest) and download **`butterfly-effect-linux-x86_64.AppImage`**. Make it executable and run it:
-```bash
-chmod +x butterfly-effect-*-linux-x86_64.AppImage
-./butterfly-effect-*-linux-x86_64.AppImage
-```
-Or clone the repo and run `./run.sh` directly (requires Python 3.11+).
-
-### Step 2 — Launch the App
-
-**Mac:** Python is bundled inside the app — no installation needed. Just double-click **Butterfly Effect** in your Applications folder. A startup page opens in your browser and redirects to the app once it's ready.
-
-**Linux:** On first run, `run.sh` automatically sets up a Python virtual environment and installs all required packages. This takes a couple of minutes. The startup page will warn you if Python is missing or too old.
-
-### Step 3 — Connect to Monarch
-
-Once setup is complete the app will take you directly to the **Settings** page. The **Monarch Connection** section (highlighted with a blue border) is the only required step:
-
-1. Click **Connect to Monarch** — a Chrome browser window will open automatically. Log in to Monarch when prompted; the window closes on its own after a successful login (~30–60 seconds).
-2. Wait a few moments for your Monarch accounts to populate, then select your **primary bill pay account** from the dropdown. Click **Save Monarch Settings** to complete the setup.
-
-Once these two steps are complete, the **Go to Dashboard →** button at the top of the page will be enabled. Click it to pull transactions and open your forecast — this may take 30 seconds or so on first run.
-
-> Down further on the Settings page are **AI Insights** and **Forecast Settings**. These are both optional on first run and can always be customized later.
-
-### Step 4 — View & customize your first forecast
-
-The first time you open the dashboard the app fetches your transaction history from Monarch. Your forecast chart will appear at the top of the left pane when it's done. After the first run, your data stays cached so the dashboard loads instantly on future visits.
-
----
-
-## Day-to-day use
-
-**Starting the app:** Double-click **`Start Balance Forecast.command`** (Mac) or run `./run.sh` (Linux). A startup page opens in your browser and redirects automatically once the server is ready. You can also bookmark `http://localhost:5002`.
-
-**Refresh Forecast** — click the button in the upper right whenever you want updated transaction data from Monarch. Takes 1–2 minutes.
-
-**Run AI Analysis** — generates fresh AI insights. Run this once a day or whenever you want an updated analysis. Requires an AI API key in Settings → AI Insights.
-
-**AI Insights drawer** — click the **AI** tab on the right edge of the window to slide the panel in over the transaction schedule. Click the **×** inside, or click the tab again, to close it.
-
-**Resize columns** — drag the vertical handle between the two panes to adjust how much width each side gets.
-
-**Settings** — click the butterfly icon (⚙) in the top-right to open Settings. Key options:
-
-| Setting | Description |
-|---|---|
-| Primary Account | Select the account used for bill payments — refresh the list if you don't see it |
-| AI Insights | Enable AI Insights (off by default); set your preferred provider (Anthropic, OpenAI, or Google), choose your preferred model and add your API key; set the default number of transaction months to retrieve for analysis; customize how long before the analysis is labeled as stale. You can also kick off an AI Analysis right from Settings and see it run in a status window |
-| Forecast Horizon | How many days to project forward (default: 45) |
-| Buffer Threshold | Get a warning when your balance drops below this dollar amount |
-| User Context & AI Corrections | Hand-edit your AI corrections in free text (also stored in `user_context.md`) |
-| Calendar Integration | Overlay custom calendar transaction events onto the forecast chart with Google Calendar, iCloud, or a custom ICS feed |
-| App Settings | Change the default port, turn on debug mode, or reset to factory defaults |
 
 ---
 
@@ -256,7 +271,7 @@ Google AI Studio keys include a generous free tier. Usage beyond the free tier i
 - **Billing Day Overrides** — correct the day-of-month for any recurring payment whose billing date Monarch has learned incorrectly
 - **Scenario Modeling** — temporarily model one-time transfers or expenses to see how they affect your balance forecast
 - **Corrections & Context** — feed the AI specific facts about your finances to improve its accuracy
-- **Startup page** — animated loading screen with helpful error messages if Python is missing or too old (Linux only — Mac bundles Python)
+- **Startup page** — animated loading screen with live progress updates and helpful error messages if Python is missing or too old
 - **Dark mode** — toggle in Settings or with the moon icon in the header
 
 ---
@@ -265,7 +280,9 @@ Google AI Studio keys include a generous free tier. Usage beyond the free tier i
 
 **"Setup needed" error on the dashboard** — click **→ Open Settings** in the error box and complete the Monarch Connection section (connect to Monarch and select your primary account).
 
-**Startup page shows a Python error (Linux)** — follow the on-screen instructions to install Python 3.11 or later: `sudo apt install python3 python3-venv` (Debian/Ubuntu) or `sudo dnf install python3` (Fedora). Mac users don't see this — Python is bundled inside the app.
+**Startup page shows a Python error** — follow the on-screen instructions to install Python 3.11 or later:
+- **Linux:** `sudo apt install python3 python3-venv` (Debian/Ubuntu) or `sudo dnf install python3` (Fedora)
+- **Windows:** Download from [python.org/downloads](https://python.org/downloads) and check "Add Python to PATH" during install, then open a **new** Command Prompt window and run `"Start Butterfly Effect - Windows.cmd"` again.
 
 **Forecast is slow** — this is normal on first run. The app opens a browser, logs into Monarch, and fetches months of transaction history. Subsequent loads use a cached session and are much faster.
 
@@ -273,9 +290,9 @@ Google AI Studio keys include a generous free tier. Usage beyond the free tier i
 
 **Account list looks incomplete after connecting** — click **Refresh Accounts** in Settings → Monarch Connection.
 
-**"API key is not configured"** — go to Settings → AI Insights, select your AI provider, and paste in your key. See [Setting up AI Insights](#setting-up-ai-insights) for step-by-step instructions on getting a key from each provider.
+**"API key is not configured"** — go to Settings → AI Insights, select your AI provider, and paste in your key. See [Setting up AI Insights](#setting-up-ai-insights) for step-by-step instructions.
 
-**Browser doesn't open automatically (Linux)** — navigate to `http://localhost:5002` in your browser manually.
+**Browser doesn't open automatically** — navigate to `http://localhost:5002` in your browser manually.
 
 **The app was working and suddenly stopped** — Monarch occasionally updates their web app, which can break the data-fetching layer. Check the [project page on GitHub](https://github.com/vendaface/butterfly-effect) for updates.
 
@@ -299,6 +316,7 @@ All runtime data is stored in your user data directory — never in a cloud serv
 
 - **Mac:** `~/Library/Application Support/Butterfly Effect/`
 - **Linux:** `~/.local/share/butterfly-effect/`
+- **Windows:** `%APPDATA%\Butterfly Effect\` (typically `C:\Users\[yourname]\AppData\Roaming\Butterfly Effect\`)
 
 | File | What it contains | Leaves your device? |
 |---|---|---|
@@ -313,7 +331,7 @@ All runtime data is stored in your user data directory — never in a cloud serv
 | `monarch_raw_cache.json` | Cached Monarch transaction data | **Never** |
 | `user_context.md` | Corrections you feed to the AI | Only if you configure an AI provider |
 
-All sensitive files are written with owner-only permissions (`chmod 600`) so other users on the same machine cannot read them.
+All sensitive files are written with owner-only permissions so other users on the same machine cannot read them.
 
 ### Security
 
@@ -335,10 +353,11 @@ Your AI API key is stored only in `.env` on your device. It is sent only to your
 
 ## Power user reference
 
-### Running from Terminal
+### Running from source
 
+**Mac / Linux:**
 ```bash
-# Start (foreground — closes when you close the Terminal window)
+# Start (foreground — stops when you close the terminal)
 ./run.sh
 
 # Start as a background daemon
@@ -351,11 +370,25 @@ Your AI API key is stored only in `.env` on your device. It is sent only to your
 ./server.sh logs       # tail the server log
 ```
 
+**Windows:**
+```batch
+rem Start (foreground — from Command Prompt or double-click)
+"Start Butterfly Effect - Windows.cmd"
+
+rem Background daemon (from PowerShell)
+.\server.ps1 start
+.\server.ps1 stop
+.\server.ps1 restart
+.\server.ps1 status
+.\server.ps1 logs
+```
+
 ### File overview
 
 All runtime files live in your user data directory:
 - **Mac:** `~/Library/Application Support/Butterfly Effect/`
 - **Linux:** `~/.local/share/butterfly-effect/`
+- **Windows:** `%APPDATA%\Butterfly Effect\`
 
 | File | Purpose |
 |---|---|
@@ -373,8 +406,14 @@ All runtime files live in your user data directory:
 
 ### Resetting to a clean state
 
+**Mac / Linux:**
 ```bash
 ./reset-for-testing.sh
+```
+
+**Windows:**
+```batch
+reset.cmd
 ```
 
 Kills the running server, deletes all cached and generated files, and removes the virtual environment. You will be asked to confirm before anything is deleted.
@@ -385,7 +424,6 @@ Kills the running server, deletes all cached and generated files, and removes th
 
 - No official Monarch API exists — this tool intercepts the same network calls the Monarch web app makes. Changes to Monarch's web app may break it without warning.
 - Designed for desktop use; mobile layout is not optimized.
-- Windows is not supported in this version.
 
 ---
 

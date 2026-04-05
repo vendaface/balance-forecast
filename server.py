@@ -127,7 +127,7 @@ _harden_file_permissions()
 
 # ── App version (read once from VERSION file) ───────────────────────────────
 _VERSION_FILE = BASE_DIR / "VERSION"
-_APP_VERSION  = _VERSION_FILE.read_text().strip() if _VERSION_FILE.exists() else "dev"
+_APP_VERSION  = _VERSION_FILE.read_text(encoding='utf-8').strip() if _VERSION_FILE.exists() else "dev"
 
 
 @app.context_processor
@@ -285,7 +285,7 @@ def api_ai_insights():
         }), 404
 
     try:
-        insights = json.loads(_INSIGHTS_FILE.read_text())
+        insights = json.loads(_INSIGHTS_FILE.read_text(encoding='utf-8'))
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
@@ -420,7 +420,7 @@ def api_user_context():
     """Return the current user_context.md content."""
     if not _USER_CONTEXT_FILE.exists():
         return jsonify({"content": ""})
-    return jsonify({"content": _USER_CONTEXT_FILE.read_text()})
+    return jsonify({"content": _USER_CONTEXT_FILE.read_text(encoding='utf-8')})
 
 
 @app.route("/api/corrections", methods=["GET"])
@@ -482,7 +482,7 @@ def api_feedback():
     bullet = f"- [{today}] {text}"
 
     if _USER_CONTEXT_FILE.exists():
-        content = _USER_CONTEXT_FILE.read_text()
+        content = _USER_CONTEXT_FILE.read_text(encoding='utf-8')
     else:
         content = _USER_CONTEXT_TEMPLATE
 
@@ -737,7 +737,7 @@ def settings():
             "generated_at": insights.get("generated_at", ""),
             "token_usage":  insights.get("token_usage"),
         },
-        user_context=_USER_CONTEXT_FILE.read_text() if _USER_CONTEXT_FILE.exists() else "",
+        user_context=_USER_CONTEXT_FILE.read_text(encoding='utf-8') if _USER_CONTEXT_FILE.exists() else "",
         setup_mode=setup_mode,
         setup_status=status,
     )
@@ -824,7 +824,7 @@ def api_settings_monarch():
         acct_name = account_id   # fallback: display raw ID
         if _ACCOUNTS_CACHE_FILE.exists():
             try:
-                cached_accts = json.loads(_ACCOUNTS_CACHE_FILE.read_text())
+                cached_accts = json.loads(_ACCOUNTS_CACHE_FILE.read_text(encoding='utf-8'))
                 match = next(
                     (a for a in cached_accts if str(a.get("id", "")) == str(account_id)),
                     None,
@@ -947,6 +947,7 @@ def api_run_ai_analysis():
                     stdout=subprocess.PIPE,
                     stderr=subprocess.STDOUT,
                     text=True,
+                    encoding='utf-8',   # explicit UTF-8 so Unicode in ai_daily output is decoded correctly on Windows
                     bufsize=1,   # line-buffered so output arrives incrementally
                     cwd=str(Path(__file__).parent),
                 )
@@ -1070,30 +1071,35 @@ def api_factory_reset():
 
         base = Path(__file__).parent
 
-        # Glob patterns catch exact names AND macOS numbered duplicates
-        # e.g. "config 3.yaml", "browser_state 2.json", "user_context 2.md"
+        # ── User data files — live in APP_DATA_DIR on every platform ──────────
+        # (macOS: ~/Library/Application Support/Butterfly Effect/
+        #  Windows: %APPDATA%\Butterfly Effect\
+        #  Linux:   ~/.local/share/butterfly-effect/)
+        # Glob patterns also catch macOS numbered duplicates created by iCloud /
+        # Proton Drive sync conflicts, e.g. "config 3.yaml", "browser_state 2.json"
 
         # All JSON data files (payment_overrides, scenarios, accounts cache, etc.)
-        for f in base.glob("*.json"):
+        for f in APP_DATA_DIR.glob("*.json"):
             try: f.unlink(missing_ok=True)
             except Exception: pass
 
-        # config.yaml + "config 3.yaml" etc. — does NOT match config.yaml.example
-        for f in base.glob("config*.yaml"):
+        # config.yaml — does NOT match config.yaml.example (which stays in base)
+        for f in APP_DATA_DIR.glob("config*.yaml"):
             try: f.unlink(missing_ok=True)
             except Exception: pass
 
-        # .env + ".env 2" etc.
-        for f in base.glob(".env*"):
+        # .env credentials file
+        for f in APP_DATA_DIR.glob(".env*"):
             try: f.unlink(missing_ok=True)
             except Exception: pass
 
-        # user_context.md + "user_context 2.md" etc.
-        for f in base.glob("user_context*"):
+        # user_context.md AI corrections file
+        for f in APP_DATA_DIR.glob("user_context*"):
             try: f.unlink(missing_ok=True)
             except Exception: pass
 
-        # .server.pid, .server.log + numbered duplicates
+        # ── Project-root runtime files ─────────────────────────────────────────
+        # .server.pid and .server.log are written next to the script by server.ps1 / server.sh
         for f in base.glob(".server*"):
             try: f.unlink(missing_ok=True)
             except Exception: pass
@@ -1203,7 +1209,7 @@ def api_monarch_accounts():
             age = datetime.now().timestamp() - _ACCOUNTS_CACHE_FILE.stat().st_mtime
             if age < cache_max_age:
                 try:
-                    return jsonify(json.loads(_ACCOUNTS_CACHE_FILE.read_text()))
+                    return jsonify(json.loads(_ACCOUNTS_CACHE_FILE.read_text(encoding='utf-8')))
                 except Exception:
                     pass   # fall through to re-fetch if cache is corrupt
 

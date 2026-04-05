@@ -57,7 +57,7 @@ def _load_config() -> dict:
             raise RuntimeError(
                 "config.yaml not found. Copy config.yaml.example and fill in values."
             )
-    return yaml.safe_load(_CONFIG_PATH.read_text())
+    return yaml.safe_load(_CONFIG_PATH.read_text(encoding='utf-8'))
 
 
 def _save_config(config: dict) -> None:
@@ -100,7 +100,7 @@ def _env_key_status(key: str) -> str:
         return "configured"
     # Fallback: read .env file directly
     if _ENV_PATH.exists():
-        for line in _ENV_PATH.read_text().splitlines():
+        for line in _ENV_PATH.read_text(encoding='utf-8').splitlines():
             if line.startswith(f"{key}="):
                 val = line[len(f"{key}="):].strip().strip('"').strip("'")
                 if val:
@@ -111,7 +111,7 @@ def _env_key_status(key: str) -> str:
 
 def _update_env_key(key: str, value: str) -> None:
     """Update or add key=value in .env; also update os.environ in-memory."""
-    lines = _ENV_PATH.read_text().splitlines() if _ENV_PATH.exists() else []
+    lines = _ENV_PATH.read_text(encoding='utf-8').splitlines() if _ENV_PATH.exists() else []
     found = False
     for i, line in enumerate(lines):
         if line.startswith(f"{key}="):
@@ -130,7 +130,7 @@ def _delete_env_key(key: str) -> None:
     Used for privacy opt-out — leaves no empty key line behind.
     """
     if _ENV_PATH.exists():
-        lines = [l for l in _ENV_PATH.read_text().splitlines()
+        lines = [l for l in _ENV_PATH.read_text(encoding='utf-8').splitlines()
                  if not l.startswith(f"{key}=")]
         _atomic_write(_ENV_PATH, "\n".join(lines) + ("\n" if lines else ""))
     os.environ.pop(key, None)
@@ -142,7 +142,7 @@ def _read_env_value(key: str) -> str:
     if val:
         return val
     if _ENV_PATH.exists():
-        for line in _ENV_PATH.read_text().splitlines():
+        for line in _ENV_PATH.read_text(encoding='utf-8').splitlines():
             if line.startswith(f"{key}="):
                 return line[len(f"{key}="):].strip().strip('"').strip("'")
     return ""

@@ -1,10 +1,18 @@
-# server.ps1 — Butterfly Effect server management for Windows
+# server.ps1 -- Butterfly Effect server management for Windows
 # Usage: .\server.ps1 [start|stop|restart|status|logs]
 # Mirrors server.sh behaviour exactly.
+#
+# NOTE: This file intentionally uses only ASCII characters.
+# PowerShell 5.1 reads .ps1 files as Windows-1252 when no BOM is present;
+# UTF-8 multi-byte sequences (em-dash, box-drawing chars, etc.) can contain
+# byte 0x94 which Windows-1252 maps to a curly double-quote -- a valid PS
+# string delimiter -- causing silent parse failures.
 
 #Requires -Version 5.1
 Set-StrictMode -Version Latest
-$ErrorActionPreference = 'Stop'
+# Use 'Continue' so native commands writing to stderr (pip warnings, etc.)
+# don't trigger NativeCommandError. Real failures are caught via $LASTEXITCODE.
+$ErrorActionPreference = 'Continue'
 
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 Set-Location $ScriptDir
@@ -14,7 +22,7 @@ $PidFile = Join-Path $ScriptDir '.server.pid'
 $LogFile = Join-Path $ScriptDir '.server.log'
 $Port    = 5002
 
-# ── Helpers ───────────────────────────────────────────────────────────────────
+# -- Helpers ------------------------------------------------------------------
 
 function Get-VenvPython { Join-Path $Venv 'Scripts\python.exe' }
 function Get-VenvPip    { Join-Path $Venv 'Scripts\pip.exe'    }
@@ -28,14 +36,16 @@ function Ensure-Venv {
         if ($LASTEXITCODE -ne 0) { $healthy = $false }
     }
     if (-not $healthy) {
-        Write-Host "Virtual environment missing or corrupted — rebuilding at $Venv ..."
+        Write-Host "Virtual environment missing or corrupted - rebuilding at $Venv ..."
         if (Test-Path $Venv) { Remove-Item $Venv -Recurse -Force }
         $python = $null
-        foreach ($c in @('python', 'python3', 'python3.13', 'python3.12', 'python3.11')) {
+        foreach ($c in @('py', 'python', 'python3', 'python3.13', 'python3.12', 'python3.11')) {
             $found = Get-Command $c -ErrorAction SilentlyContinue
             if ($found) {
-                & $c -c 'import sys; sys.exit(0 if sys.version_info >= (3,11) else 1)' 2>$null
-                if ($LASTEXITCODE -eq 0) { $python = $c; break }
+                try {
+                    $null = & $c -c 'import sys; sys.exit(0 if sys.version_info >= (3,11) else 1)' 2>&1
+                    if ($LASTEXITCODE -eq 0) { $python = $c; break }
+                } catch { }
             }
         }
         if (-not $python) {
@@ -71,7 +81,7 @@ function Kill-PortProcess {
     }
 }
 
-# ── Commands ──────────────────────────────────────────────────────────────────
+# -- Commands -----------------------------------------------------------------
 
 function cmd_status {
     if (Is-Running) {
@@ -89,21 +99,25 @@ function cmd_start {
         return
     }
 
-    # Open startup page — JS polls /_ping and auto-redirects when Flask is ready
-    $startupPath = (Join-Path $ScriptDir 'startup.html') -replace '\\', '/'
-    Start-Process "file:///$startupPath"
-
     Ensure-Venv
 
     $py  = Get-VenvPython
     $pip = Get-VenvPip
-    & $pip install -q -r (Join-Path $ScriptDir 'requirements.txt')
+    & $pip install -q -r (Join-Path $ScriptDir 'requirements.txt') 2>&1 | Out-Null
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host 'Error: Failed to install Python dependencies. Check your internet connection.'
+        exit 1
+    }
 
     Write-Host 'Starting Butterfly Effect...'
+    # Force UTF-8 for all Python I/O so Unicode characters in print() statements
+    # (checkmarks, arrows, em-dashes) don't crash on Windows consoles using cp1252.
+    $env:PYTHONUTF8 = '1'
+    $ErrFile = $LogFile -replace '\.log$', '.err.log'
     $proc = Start-Process -FilePath $py `
                           -ArgumentList (Join-Path $ScriptDir 'server.py') `
                           -RedirectStandardOutput $LogFile `
-                          -RedirectStandardError  $LogFile `
+                          -RedirectStandardError  $ErrFile `
                           -WindowStyle Hidden `
                           -PassThru
     $proc.Id | Set-Content $PidFile
@@ -113,7 +127,8 @@ function cmd_start {
         Write-Host "v Server started (PID $($proc.Id)) at http://localhost:$Port"
     } else {
         Write-Host "x Server failed to start. Check logs:"
-        Get-Content $LogFile -Tail 20 -ErrorAction SilentlyContinue
+        Get-Content $LogFile  -Tail 20 -ErrorAction SilentlyContinue
+        Get-Content $ErrFile  -Tail 20 -ErrorAction SilentlyContinue
         exit 1
     }
 }
@@ -143,7 +158,7 @@ function cmd_logs {
     Get-Content $LogFile -Tail 50 -Wait
 }
 
-# ── Dispatch ──────────────────────────────────────────────────────────────────
+# -- Dispatch -----------------------------------------------------------------
 $Cmd = if ($args.Count -gt 0) { $args[0] } else { 'status' }
 switch ($Cmd) {
     'start'   { cmd_start   }

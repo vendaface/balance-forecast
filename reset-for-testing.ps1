@@ -1,26 +1,32 @@
-# reset-for-testing.ps1 — wipes all runtime files to simulate a fresh clone
+# reset-for-testing.ps1 -- wipes all runtime files to simulate a fresh clone
 # DO NOT run this on a live installation you care about.
 # Mirrors reset-for-testing.sh behaviour exactly.
+#
+# NOTE: This file intentionally uses only ASCII characters.
+# PowerShell 5.1 reads .ps1 files as Windows-1252 when no BOM is present;
+# UTF-8 multi-byte sequences (em-dash, box-drawing chars, etc.) can contain
+# byte 0x94 which Windows-1252 maps to a curly double-quote -- a valid PS
+# string delimiter -- causing silent parse failures.
 
 #Requires -Version 5.1
 Set-StrictMode -Version Latest
-$ErrorActionPreference = 'SilentlyContinue'   # be forgiving — deletion is best-effort
+$ErrorActionPreference = 'SilentlyContinue'   # be forgiving - deletion is best-effort
 
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 Set-Location $ScriptDir
 
-# ── Resolve APP_DATA_DIR (mirrors paths.py logic) ────────────────────────────
+# -- Resolve APP_DATA_DIR (mirrors paths.py logic) ----------------------------
 $AppDataDir      = Join-Path $env:APPDATA 'Butterfly Effect'
 $PlaywrightCache = Join-Path $env:USERPROFILE '.cache\butterfly-effect\playwright'
 
-# ── Quick browser-only reset ──────────────────────────────────────────────────
+# -- Quick browser-only reset -------------------------------------------------
 if ($args.Count -gt 0 -and $args[0] -eq '--browser-only') {
     if (Test-Path $PlaywrightCache) {
         Remove-Item $PlaywrightCache -Recurse -Force
         Write-Host "Deleted Playwright cache: $PlaywrightCache"
         Write-Host "Chromium will re-download (~250 MB) on next launch or Connect to Monarch."
     } else {
-        Write-Host "Playwright cache not found — already clean."
+        Write-Host "Playwright cache not found - already clean."
     }
     exit 0
 }
@@ -42,7 +48,7 @@ if ($confirm -ne 'yes') {
 
 Write-Host ""
 
-# ── Kill running server ───────────────────────────────────────────────────────
+# -- Kill running server ------------------------------------------------------
 $PidFile = Join-Path $ScriptDir '.server.pid'
 if (Test-Path $PidFile) {
     $pid_ = Get-Content $PidFile -ErrorAction SilentlyContinue
@@ -67,7 +73,7 @@ foreach ($c in $conns) {
     }
 }
 
-# ── Delete runtime files from APP_DATA_DIR ───────────────────────────────────
+# -- Delete runtime files from APP_DATA_DIR -----------------------------------
 Write-Host "  deleting runtime files from: $AppDataDir"
 
 $AppDataFiles = @(
@@ -86,7 +92,7 @@ foreach ($f in $AppDataFiles) {
     }
 }
 
-# ── Delete leftover runtime files from project dir (pre-migration remnants) ──
+# -- Delete leftover runtime files from project dir (pre-migration remnants) --
 Write-Host "  checking project dir for pre-migration remnants..."
 
 $ProjectFiles = @(
@@ -106,7 +112,7 @@ foreach ($f in $ProjectFiles) {
     }
 }
 
-# ── Delete Playwright browser cache (optional) ────────────────────────────────
+# -- Delete Playwright browser cache (optional) -------------------------------
 if ($delBrowser -eq 'yes') {
     if (Test-Path $PlaywrightCache) {
         Remove-Item $PlaywrightCache -Recurse -Force
@@ -118,13 +124,13 @@ if ($delBrowser -eq 'yes') {
     Write-Host "  skipping Playwright cache (will reuse existing browser)"
 }
 
-# ── __pycache__ directories ───────────────────────────────────────────────────
+# -- __pycache__ directories --------------------------------------------------
 Get-ChildItem $ScriptDir -Recurse -Directory -Filter '__pycache__' | ForEach-Object {
     Remove-Item $_.FullName -Recurse -Force -ErrorAction SilentlyContinue
     Write-Host "    deleted: $($_.FullName)"
 }
 
-# ── Virtual environment ───────────────────────────────────────────────────────
+# -- Virtual environment ------------------------------------------------------
 $Venv = Join-Path $ScriptDir '.venv'
 if (Test-Path $Venv) {
     # Ensure all files are writable before removal (mirrors chmod -R u+w in run.sh)
@@ -136,4 +142,4 @@ if (Test-Path $Venv) {
 }
 
 Write-Host ""
-Write-Host "Done. Run 'run.cmd' to test a fresh install."
+Write-Host "Done. Run 'Start Butterfly Effect - Windows.cmd' to test a fresh install."

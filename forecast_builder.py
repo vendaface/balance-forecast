@@ -182,7 +182,7 @@ def _get_forecast_data(config: dict) -> dict:
     if config.get("demo_mode"):
         _demo = _BASE_DIR / "demo" / "forecast_data.json"
         if _demo.exists():
-            data = json.loads(_demo.read_text())
+            data = json.loads(_demo.read_text(encoding='utf-8'))
             _cache["data"] = data
             _cache["ts"] = time.time()
             return data
@@ -352,7 +352,10 @@ def _get_forecast_data(config: dict) -> dict:
             _fetched_dt = datetime.now()
     else:
         _fetched_dt = datetime.now()
-    result["refreshed_at"] = _fetched_dt.strftime("%A %b %-d, %Y at %-I:%M %p")
+    # %-d and %-I are POSIX-only (Linux/macOS); use datetime attributes for cross-platform
+    # zero-stripping so this works on Windows too.
+    _hour = _fetched_dt.strftime("%I:%M %p").lstrip("0")  # "01:30 PM" → "1:30 PM"
+    result["refreshed_at"] = f"{_fetched_dt.strftime('%A %b')} {_fetched_dt.day}, {_fetched_dt.year} at {_hour}"
     result["horizon_days"] = horizon
     result["has_ai_predictions"] = bool(predicted_events)
 

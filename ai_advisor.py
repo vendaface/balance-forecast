@@ -404,7 +404,7 @@ def _build_user_prompt(
     # Load user corrections — injected early so they take priority
     user_context_section = []
     if _USER_CONTEXT_FILE.exists():
-        ctx = _USER_CONTEXT_FILE.read_text().strip()
+        ctx = _USER_CONTEXT_FILE.read_text(encoding='utf-8').strip()
         if ctx:
             user_context_section = [
                 "",
@@ -510,7 +510,7 @@ if __name__ == "__main__":
         print("Run: python ai_daily.py")
         sys.exit(1)
 
-    insights = json.loads(INSIGHTS_FILE.read_text())
+    insights = json.loads(INSIGHTS_FILE.read_text(encoding='utf-8'))
     generated = insights.get("generated_at", "unknown")
     print(f"\n{'='*60}")
     print(f"AI Insights (generated: {generated})")
@@ -537,13 +537,13 @@ if __name__ == "__main__":
         print(f"\nSurplus alerts:")
         for s in surpluses:
             print(f"  {s.get('period', '?')}: ${s.get('estimated_surplus', 0):,.2f}")
-            print(f"    → {s.get('suggested_allocation', '')}")
+            print(f"    -> {s.get('suggested_allocation', '')}")
 
     flags = insights.get("risk_flags", [])
     if flags:
         print(f"\nRisk flags:")
         for f in flags:
-            print(f"  ⚠ {f}")
+            print(f"  [!] {f}")
 
     notes = insights.get("seasonal_notes", "")
     if notes:
